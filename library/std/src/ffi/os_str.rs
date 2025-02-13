@@ -137,7 +137,8 @@ impl OsString {
     #[stable(feature = "rust1", since = "1.0.0")]
     #[must_use]
     #[inline]
-    pub fn new() -> OsString {
+    #[rustc_const_unstable(feature = "const_os_string_new", issue = "none")]
+    pub const fn new() -> OsString {
         OsString { inner: Buf::from_string(String::new()) }
     }
 
