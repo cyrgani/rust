@@ -236,6 +236,18 @@ impl Command {
         output
     }
 
+    /// Run the constructed command and assert that it causes an ICE.
+    ///
+    /// By default, std{in,out,err} are [`Stdio::piped()`].
+    #[track_caller]
+    pub fn run_ice(&mut self) -> CompletedProcess {
+        let output = self.command_output();
+        if output.status().success() || matches!(output.status().code(), Some(1 | 0)) {
+            handle_failed_output(&self, output, panic::Location::caller().line());
+        }
+        output
+    }
+
     /// Run the command but do not check its exit status. Only use if you explicitly don't care
     /// about the exit status.
     ///

@@ -139,6 +139,12 @@ macro_rules! impl_common_helpers {
                 self.cmd.run_fail()
             }
 
+            /// Run the constructed command and assert that it causes an ICE.
+            #[track_caller]
+            pub fn run_ice(&mut self) -> crate::command::CompletedProcess {
+                self.cmd.run_ice()
+            }
+
             /// Run the command but do not check its exit status.
             /// Only use if you explicitly don't care about the exit status.
             /// Prefer to use [`Self::run`] and [`Self::run_fail`]
