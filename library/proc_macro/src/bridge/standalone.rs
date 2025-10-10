@@ -13,11 +13,11 @@ impl server::Span for NoRustc {
     }
 
     fn parent(&mut self, span: Self::Span) -> Option<Self::Span> {
-        None
+        todo!()
     }
 
     fn source(&mut self, span: Self::Span) -> Self::Span {
-        span
+        todo!()
     }
 
     fn byte_range(&mut self, span: Self::Span) -> Range<usize> {
@@ -118,13 +118,9 @@ impl server::FreeFunctions for NoRustc {
         todo!()
     }
 
-    fn track_env_var(&mut self, var: &str, value: Option<&str>) {
-        todo!()
-    }
+    fn track_env_var(&mut self, _var: &str, _value: Option<&str>) {}
 
-    fn track_path(&mut self, path: &str) {
-        todo!()
-    }
+    fn track_path(&mut self, _path: &str) {}
 
     fn literal_from_str(&mut self, s: &str) -> Result<Literal<Self::Span, Self::Symbol>, ()> {
         todo!()
