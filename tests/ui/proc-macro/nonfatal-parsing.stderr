@@ -1,0 +1,35 @@
+error: invalid digit for a base 2 literal
+  --> $DIR/nonfatal-parsing.rs:11:5
+   |
+LL |     nonfatal_parsing::run!();
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the macro `nonfatal_parsing::run` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: found invalid character; only `#` is allowed in raw string delimitation: \u{0}
+  --> $DIR/nonfatal-parsing.rs:11:5
+   |
+LL |     nonfatal_parsing::run!();
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the macro `nonfatal_parsing::run` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0768]: no valid digits found for number
+  --> $DIR/nonfatal-parsing.rs:11:5
+   |
+LL |     nonfatal_parsing::run!();
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the macro `nonfatal_parsing::run` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: binary float literal is not supported
+  --> $DIR/nonfatal-parsing.rs:11:5
+   |
+LL |     nonfatal_parsing::run!();
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the macro `nonfatal_parsing::run` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: aborting due to 4 previous errors
+
+For more information about this error, try `rustc --explain E0768`.
