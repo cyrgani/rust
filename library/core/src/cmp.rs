@@ -345,6 +345,7 @@ pub const trait Eq: [const] PartialEq<Self> + PointeeSized {
     #[coverage(off)]
     #[inline]
     #[stable(feature = "rust1", since = "1.0.0")]
+    #[deprecated(since = "1.93.0", note = "internal method that should never be implemented")]
     fn assert_receiver_is_total_eq(&self) {}
 }
 

@@ -1,7 +1,7 @@
 use rustc_ast::{self as ast, MetaItem, Safety};
 use rustc_data_structures::fx::FxHashSet;
 use rustc_expand::base::{Annotatable, ExtCtxt};
-use rustc_span::{Span, sym};
+use rustc_span::{Span, sym, Ident, kw};
 use thin_vec::{ThinVec, thin_vec};
 
 use crate::deriving::generic::ty::*;
@@ -37,8 +37,8 @@ pub(crate) fn expand_deriving_eq(
                 cx.attr_nested_word(sym::coverage, sym::off, span)
             ],
             fieldless_variants_strategy: FieldlessVariantsStrategy::Unify,
-            combine_substructure: combine_substructure(Box::new(|a, b, c| {
-                cs_total_eq_assert(a, b, c)
+            combine_substructure: combine_substructure(Box::new(|_, _, c| {
+                BlockOrExpr::new_stmts(ThinVec::new())
             })),
         }],
         associated_types: Vec::new(),
@@ -47,14 +47,23 @@ pub(crate) fn expand_deriving_eq(
         safety: Safety::Default,
         document: true,
     };
-    trait_def.expand_ext(cx, mitem, item, push, true)
+    trait_def.expand_ext(cx, mitem, item, push, true);
+    let block = ast::ConstItemRhs::Body(cx.expr_block(
+        cx.block(span, cs_total_eq_assert(cx, span, )),
+    ));
+    let anon_constant = cx.item_const(
+        span,
+        Ident::new(kw::Underscore, span),
+        cx.ty(span, ast::TyKind::Tup(ThinVec::new())),
+        block,
+    );
 }
 
 fn cs_total_eq_assert(
     cx: &ExtCtxt<'_>,
     trait_span: Span,
     substr: &Substructure<'_>,
-) -> BlockOrExpr {
+) -> ThinVec<ast::Stmt> {
     let mut stmts = ThinVec::new();
     let mut seen_type_names = FxHashSet::default();
     let mut process_variant = |variant: &ast::VariantData| {
@@ -90,5 +99,5 @@ fn cs_total_eq_assert(
         }
         _ => cx.dcx().span_bug(trait_span, "unexpected substructure in `derive(Eq)`"),
     }
-    BlockOrExpr::new_stmts(stmts)
+    stmts
 }
