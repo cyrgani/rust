@@ -8,6 +8,7 @@
 #![feature(assert_matches)]
 #![feature(box_patterns)]
 #![feature(decl_macro)]
+#![feature(default_field_values)]
 #![feature(if_let_guard)]
 #![feature(iter_order_by)]
 #![feature(proc_macro_internals)]

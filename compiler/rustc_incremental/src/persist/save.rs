@@ -7,7 +7,7 @@ use rustc_middle::dep_graph::{
     DepGraph, SerializedDepGraph, WorkProduct, WorkProductId, WorkProductMap,
 };
 use rustc_middle::ty::TyCtxt;
-use rustc_serialize::Encodable as RustcEncodable;
+use rustc_serialize::Encodable;
 use rustc_serialize::opaque::{FileEncodeResult, FileEncoder};
 use rustc_session::Session;
 use tracing::debug;

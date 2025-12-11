@@ -231,6 +231,8 @@ pub(crate) struct TraitDef<'a> {
 
     /// Whether the added `impl` should appear in rustdoc output.
     pub document: bool,
+
+    pub combine_substructure: Option<RefCell<CombineSubstructureFunc<'a>>> = None,
 }
 
 pub(crate) struct MethodDef<'a> {
@@ -254,6 +256,10 @@ pub(crate) struct MethodDef<'a> {
 
     pub combine_substructure: RefCell<CombineSubstructureFunc<'a>>,
 }
+
+const _: () = {
+
+};
 
 /// How to handle fieldless enum variants.
 #[derive(PartialEq)]

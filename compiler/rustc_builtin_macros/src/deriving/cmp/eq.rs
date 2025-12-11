@@ -46,8 +46,19 @@ pub(crate) fn expand_deriving_eq(
         is_staged_api_crate: cx.ecfg.features.staged_api(),
         safety: Safety::Default,
         document: true,
+        combine_substructure: Some(combine_substructure(Box::new(|a, b, c| {
+            cs_total_eq_assert(a, b, c)
+        }))),
     };
-    trait_def.expand_ext(cx, mitem, item, push, true)
+    trait_def.expand_ext(cx, mitem, item, push, true);
+    /*let block =
+        ast::ConstItemRhs::Body(cx.expr_block(cx.block(span, cs_total_eq_assert(cx, span))));
+    let anon_constant = cx.item_const(
+        span,
+        Ident::new(kw::Underscore, span),
+        cx.ty(span, ast::TyKind::Tup(ThinVec::new())),
+        block,
+    );*/
 }
 
 fn cs_total_eq_assert(
