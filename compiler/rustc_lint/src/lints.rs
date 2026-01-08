@@ -3883,3 +3883,8 @@ pub(crate) struct UnreachableCfgSelectPredicateWildcard {
     #[label("always matches")]
     pub wildcard_span: Span,
 }
+
+#[derive(LintDiagnostic)]
+#[diag("`Eq::assert_receiver_is_total_eq` should never be implemented by hand")]
+#[note("this method is only used to add checks to the `Eq` derive macro")]
+pub(crate) struct EqInternalMethodImplemented;
