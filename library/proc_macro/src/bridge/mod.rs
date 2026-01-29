@@ -11,7 +11,7 @@
 use std::hash::Hash;
 use std::ops::{Bound, Range};
 use std::sync::Once;
-use std::{fmt, marker, mem, panic, thread};
+use std::{fmt, marker, panic, thread};
 
 use crate::{Delimiter, Level};
 
@@ -32,7 +32,7 @@ use crate::{Delimiter, Level};
 /// special handling, to enable several different representations of
 /// these types.
 macro_rules! with_api {
-    ($m:ident, $TokenStream: path, $Span: path, $Symbol: path) => {
+    ($m:ident, $Span: path, $Symbol: path) => {
         $m! {
             fn injected_env_var(var: &str) -> Option<String>;
             fn track_env_var(var: &str, value: Option<&str>);
@@ -40,26 +40,9 @@ macro_rules! with_api {
             fn literal_from_str(s: &str) -> Result<Literal<$Span, $Symbol>, ()>;
             fn emit_diagnostic(diagnostic: Diagnostic<$Span>);
 
-            fn ts_drop(stream: $TokenStream);
-            fn ts_clone(stream: &$TokenStream) -> $TokenStream;
-            fn ts_is_empty(stream: &$TokenStream) -> bool;
-            fn ts_expand_expr(stream: &$TokenStream) -> Result<$TokenStream, ()>;
-            fn ts_from_str(src: &str) -> $TokenStream;
-            fn ts_to_string(stream: &$TokenStream) -> String;
-            fn ts_from_token_tree(
-                tree: TokenTree<$TokenStream, $Span, $Symbol>,
-            ) -> $TokenStream;
-            fn ts_concat_trees(
-                base: Option<$TokenStream>,
-                trees: Vec<TokenTree<$TokenStream, $Span, $Symbol>>,
-            ) -> $TokenStream;
-            fn ts_concat_streams(
-                base: Option<$TokenStream>,
-                streams: Vec<$TokenStream>,
-            ) -> $TokenStream;
-            fn ts_into_trees(
-                stream: $TokenStream
-            ) -> Vec<TokenTree<$TokenStream, $Span, $Symbol>>;
+            fn ts_expand_expr(stream: TokenStream<$Span, $Symbol>) -> Result<TokenStream<$Span, $Symbol>, ()>;
+            fn ts_from_str(src: &str) -> TokenStream<$Span, $Symbol>;
+            fn ts_to_string(stream: TokenStream<$Span, $Symbol>) -> String;
 
             fn span_debug(span: $Span) -> String;
             fn span_parent(span: $Span) -> Option<$Span>;
@@ -142,7 +125,7 @@ macro_rules! declare_tags {
         rpc_encode_decode!(enum ApiTags { $($method),* });
     }
 }
-with_api!(declare_tags, __, __, __);
+with_api!(declare_tags, __, __);
 
 /// Helper to wrap associated types to allow trait impl dispatch.
 /// That is, normally a pair of impls for `T::Foo` and `T::Bar`
@@ -167,15 +150,6 @@ impl<T, M> Mark for Marked<T, M> {
     }
     fn unmark(self) -> Self::Unmarked {
         self.value
-    }
-}
-impl<'a, T> Mark for &'a Marked<T, client::TokenStream> {
-    type Unmarked = &'a T;
-    fn mark(_: Self::Unmarked) -> Self {
-        unreachable!()
-    }
-    fn unmark(self) -> Self::Unmarked {
-        &self.value
     }
 }
 
@@ -354,13 +328,13 @@ impl<Span: Copy> DelimSpan<Span> {
 compound_traits!(struct DelimSpan<Span> { open, close, entire });
 
 #[derive(Clone)]
-pub struct Group<TokenStream, Span> {
+pub struct Group<Span, Symbol> {
     pub delimiter: Delimiter,
-    pub stream: Option<TokenStream>,
+    pub stream: Option<TokenStream<Span, Symbol>>,
     pub span: DelimSpan<Span>,
 }
 
-compound_traits!(struct Group<TokenStream, Span> { delimiter, stream, span });
+compound_traits!(struct Group<Span, Symbol> { delimiter, stream, span });
 
 #[derive(Clone)]
 pub struct Punct<Span> {
@@ -391,20 +365,35 @@ pub struct Literal<Span, Symbol> {
 compound_traits!(struct Literal<Span, Symbol> { kind, symbol, suffix, span });
 
 #[derive(Clone)]
-pub enum TokenTree<TokenStream, Span, Symbol> {
-    Group(Group<TokenStream, Span>),
+pub enum TokenTree<Span, Symbol> {
+    Group(Group<Span, Symbol>),
     Punct(Punct<Span>),
     Ident(Ident<Span, Symbol>),
     Literal(Literal<Span, Symbol>),
 }
 
 compound_traits!(
-    enum TokenTree<TokenStream, Span, Symbol> {
+    enum TokenTree<Span, Symbol> {
         Group(tt),
         Punct(tt),
         Ident(tt),
         Literal(tt),
     }
+);
+
+#[derive(Clone)]
+pub struct TokenStream<Span, Symbol> {
+    pub trees: Vec<TokenTree<Span, Symbol>>,
+}
+
+impl<Span, Symbol> Default for TokenStream<Span, Symbol> {
+    fn default() -> Self {
+        Self { trees: Vec::new() }
+    }
+}
+
+compound_traits!(
+    struct TokenStream<Span, Symbol> { trees }
 );
 
 #[derive(Clone, Debug)]
