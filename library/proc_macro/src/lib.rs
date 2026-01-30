@@ -48,6 +48,7 @@ use core::ops::BitOr;
 use std::ffi::CStr;
 use std::ops::{Range, RangeBounds};
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::str::FromStr;
 use std::{error, fmt};
 
@@ -102,7 +103,7 @@ pub fn is_available() -> bool {
 #[cfg_attr(feature = "rustc-dep-of-std", rustc_diagnostic_item = "TokenStream")]
 #[stable(feature = "proc_macro_lib", since = "1.15.0")]
 #[derive(Clone)]
-pub struct TokenStream(Vec<bridge::TokenTree<bridge::client::Span, bridge::client::Symbol>>);
+pub struct TokenStream(Rc<Vec<bridge::TokenTree<bridge::client::Span, bridge::client::Symbol>>>);
 
 #[stable(feature = "proc_macro_lib", since = "1.15.0")]
 impl !Send for TokenStream {}
@@ -156,7 +157,7 @@ impl TokenStream {
     /// Returns an empty `TokenStream` containing no token trees.
     #[stable(feature = "proc_macro_lib2", since = "1.29.0")]
     pub fn new() -> TokenStream {
-        TokenStream(Vec::new())
+        TokenStream(Rc::new(Vec::new()))
     }
 
     /// Checks if this `TokenStream` is empty.
@@ -178,7 +179,7 @@ impl TokenStream {
     #[unstable(feature = "proc_macro_expand", issue = "90765")]
     pub fn expand_expr(&self) -> Result<TokenStream, ExpandError> {
         match BridgeMethods::ts_expand_expr(stream_to_bridge_stream(self.clone())) {
-            Ok(stream) => Ok(TokenStream(stream.trees)),
+            Ok(stream) => Ok(TokenStream(Rc::new(stream.trees))),
             Err(_) => Err(ExpandError),
         }
     }
@@ -196,7 +197,7 @@ impl FromStr for TokenStream {
     type Err = LexError;
 
     fn from_str(src: &str) -> Result<TokenStream, LexError> {
-        Ok(TokenStream(BridgeMethods::ts_from_str(src).trees))
+        Ok(TokenStream(Rc::new(BridgeMethods::ts_from_str(src).trees)))
     }
 }
 
@@ -240,7 +241,7 @@ pub use quote::{HasIterator, RepInterp, ThereIsNoIteratorInRepetition, ext, quot
 fn stream_to_bridge_stream(
     stream: TokenStream,
 ) -> bridge::TokenStream<bridge::client::Span, bridge::client::Symbol> {
-    bridge::TokenStream { trees: stream.0 }
+    bridge::TokenStream { trees: stream.0.to_vec() }
 }
 
 fn tree_to_bridge_tree(
@@ -258,7 +259,7 @@ fn tree_to_bridge_tree(
 #[stable(feature = "proc_macro_lib2", since = "1.29.0")]
 impl From<TokenTree> for TokenStream {
     fn from(tree: TokenTree) -> TokenStream {
-        TokenStream(vec![tree_to_bridge_tree(tree)])
+        TokenStream(Rc::new(vec![tree_to_bridge_tree(tree)]))
     }
 }
 
@@ -278,14 +279,14 @@ impl ConcatTreesHelper {
     }
 
     fn build(self) -> TokenStream {
-        TokenStream(self.trees)
+        TokenStream(Rc::new(self.trees))
     }
 
     fn append_to(mut self, stream: &mut TokenStream) {
         if self.trees.is_empty() {
             return;
         }
-        stream.0.append(&mut self.trees);
+        Rc::make_mut(&mut stream.0).append(&mut self.trees);
     }
 }
 
@@ -316,8 +317,9 @@ impl ConcatStreamsHelper {
         if self.streams.is_empty() {
             return;
         }
+        let this = Rc::make_mut(&mut stream.0);
         for mut s in self.streams {
-            stream.0.append(&mut s.0);
+            this.append(Rc::make_mut(&mut s.0));
         }
     }
 }
@@ -383,6 +385,8 @@ extend_items!(Group Literal Punct Ident);
 /// Public implementation details for the `TokenStream` type, such as iterators.
 #[stable(feature = "proc_macro_lib2", since = "1.29.0")]
 pub mod token_stream {
+    use std::rc::Rc;
+
     use crate::{Group, Ident, Literal, Punct, TokenStream, TokenTree, bridge};
 
     /// An iterator over `TokenStream`'s `TokenTree`s.
@@ -422,7 +426,7 @@ pub mod token_stream {
         type IntoIter = IntoIter;
 
         fn into_iter(self) -> IntoIter {
-            IntoIter(self.0.into_iter())
+            IntoIter(Rc::unwrap_or_clone(self.0).into_iter())
         }
     }
 }
@@ -818,8 +822,8 @@ impl Group {
     #[stable(feature = "proc_macro_lib2", since = "1.29.0")]
     pub fn stream(&self) -> TokenStream {
         match &self.0.stream {
-            Some(stream) => TokenStream(stream.trees.clone()),
-            None => TokenStream(vec![]),
+            Some(stream) => TokenStream(Rc::new(stream.trees.clone())),
+            None => TokenStream(Rc::new(vec![])),
         }
     }
 
