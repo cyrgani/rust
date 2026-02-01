@@ -166,10 +166,7 @@ impl<T: Mark> Mark for Vec<T> {
     }
 }
 
-impl<T: Mark + Clone> Mark for Rc<T>
-where
-    T::Unmarked: Clone,
-{
+impl<T: Mark> Mark for Rc<T> {
     type Unmarked = Rc<T::Unmarked>;
     fn mark(unmarked: Self::Unmarked) -> Self {
         Rc::new(Mark::mark(Rc::unwrap_or_clone(unmarked)))
@@ -406,24 +403,15 @@ impl<Span, Symbol> Default for TokenStream<Span, Symbol> {
     }
 }
 
-compound_traits!(
-    struct TokenStream<Span, Symbol> { trees }
-);
-/*
-#[derive(Clone)]
-pub struct RcTokenStream<Span, Symbol> {
-    pub trees: Rc<Vec<TokenTree<Span, Symbol>>>,
-}
-
-impl<Span, Symbol> Default for RcTokenStream<Span, Symbol> {
-    fn default() -> Self {
-        Self { trees: Rc::new(Vec::new()) }
+impl<Span, Symbol> TokenStream<Span, Symbol> {
+    pub fn new(tts: Vec<TokenTree<Span, Symbol>>) -> Self {
+        Self { trees: Rc::new(tts) }
     }
 }
 
 compound_traits!(
-    struct RcTokenStream<Span, Symbol> { trees }
-);*/
+    struct TokenStream<Span, Symbol> { trees }
+);
 
 #[derive(Clone, Debug)]
 pub struct Diagnostic<Span> {

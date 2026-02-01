@@ -467,8 +467,7 @@ impl<'a, 'b> Rustc<'a, 'b> {
     }
 
     pub(crate) fn ts_rustc_to_pm(&mut self, ts: tokenstream::TokenStream) -> BridgeTokenStream {
-        let trees: Vec<TokenTree<Span, Symbol>> = FromInternal::from_internal((ts, self));
-        BridgeTokenStream { trees: Rc::new(trees) }
+        BridgeTokenStream::new(<Vec<TokenTree<Span, Symbol>>>::from_internal((ts, self)))
     }
 }
 
