@@ -258,9 +258,7 @@ impl Client<crate::TokenStream, crate::TokenStream> {
             handle_counters: &COUNTERS,
             run: super::selfless_reify::reify_to_extern_c_fn_hrt_bridge(move |bridge| {
                 run_client(bridge, |input| {
-                    Rc::unwrap_or_clone(
-                        f(crate::TokenStream(crate::bridge::TokenStream::new(input))).0.trees,
-                    )
+                    Rc::unwrap_or_clone(f(crate::TokenStream(input)).0.trees)
                 })
             }),
             _marker: PhantomData,
@@ -277,12 +275,7 @@ impl Client<(crate::TokenStream, crate::TokenStream), crate::TokenStream> {
             run: super::selfless_reify::reify_to_extern_c_fn_hrt_bridge(move |bridge| {
                 run_client(bridge, |(input, input2)| {
                     Rc::unwrap_or_clone(
-                        f(
-                            crate::TokenStream(crate::bridge::TokenStream::new(input)),
-                            crate::TokenStream(crate::bridge::TokenStream::new(input2)),
-                        )
-                        .0
-                        .trees,
+                        f(crate::TokenStream(input), crate::TokenStream(input2)).0.trees,
                     )
                 })
             }),
