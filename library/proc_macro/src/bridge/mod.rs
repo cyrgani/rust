@@ -19,16 +19,16 @@ use crate::{Delimiter, Level};
 /// Higher-order macro describing the server RPC API, allowing automatic
 /// generation of type-safe Rust APIs, both client-side and server-side.
 ///
-/// `with_api!(my_macro, MyTokenStream, MySpan, MySymbol)` expands to:
+/// `with_api!(my_macro, MySpan, MySymbol)` expands to:
 /// ```rust,ignore (pseudo-code)
 /// my_macro! {
-///     fn ts_clone(stream: &MyTokenStream) -> MyTokenStream;
+///     fn normalize(string: &str) -> MySymbol;
 ///     fn span_debug(span: &MySpan) -> String;
 ///     // ...
 /// }
 /// ```
 ///
-/// The second (`TokenStream`), third (`Span`) and fourth (`Symbol`)
+/// The second (`Span`) and third (`Symbol`)
 /// argument serve to customize the argument/return types that need
 /// special handling, to enable several different representations of
 /// these types.

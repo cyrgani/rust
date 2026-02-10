@@ -17,7 +17,6 @@ impl<S: Server> HandleStore<S> {
 }
 
 pub(super) type MarkedTokenStream<S> = bridge::TokenStream<MarkedSpan<S>, MarkedSymbol<S>>;
-//bridge::TokenStream<client::Span, client::Symbol>;
 pub(super) type MarkedSpan<S> = Marked<<S as Server>::Span, client::Span>;
 pub(super) type MarkedSymbol<S> = Marked<<S as Server>::Symbol, client::Symbol>;
 
