@@ -257,10 +257,7 @@ pub enum LitKind {
     ByteStrRaw(u8),
     CStr,
     CStrRaw(u8),
-    // This should have an `ErrorGuaranteed`, except that type isn't available
-    // in this crate. (Imagine it is there.) Hence the `WithGuar` suffix. Must
-    // only be constructed in `LitKind::from_internal`, where an
-    // `ErrorGuaranteed` is available.
+    // FIXME: remove this, it's only use is in rust-analyzer's legacy protocol
     ErrWithGuar,
 }
 
