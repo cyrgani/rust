@@ -128,7 +128,7 @@ pub fn run() {
         // emits diagnostic(s), then panics
         parse("r#", OtherWithPanic);
 
-        // emits diagnostic(s), then returns Ok(Literal { kind: ErrWithGuar, .. })
+        // emits diagnostic(s), then returns LexError("cannot parse string into token stream")
         parse("0b2", OtherError);
         parse("0bf32", OtherError);
         parse("0b0.0f32", OtherError);
@@ -139,7 +139,7 @@ pub fn run() {
         );
         parse(&format!("r{0}\"a\"{0}", "#".repeat(256)), OtherWithPanic);
 
-        // emits diagnostic, then, when parsing as a lit, returns LexError, otherwise ErrWithGuar
+        // emits diagnostic, then returns LexError
         parse("/*a*/ 0b2 //", OtherError);
     }
 }

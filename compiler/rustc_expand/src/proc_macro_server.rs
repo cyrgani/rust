@@ -7,7 +7,7 @@ use rustc_ast::tokenstream::{self, DelimSpacing, Spacing, TokenStream};
 use rustc_ast::util::literal::escape_byte_str_symbol;
 use rustc_ast_pretty::pprust;
 use rustc_data_structures::fx::FxHashMap;
-use rustc_errors::{Diag, ErrorGuaranteed, MultiSpan};
+use rustc_errors::{Diag, MultiSpan};
 use rustc_parse::lexer::{StripTokens, nfc_normalize};
 use rustc_parse::parser::Parser;
 use rustc_parse::{exp, new_parser_from_source_str, source_str_to_stream};
@@ -65,13 +65,7 @@ impl FromInternal<token::LitKind> for LitKind {
             token::ByteStrRaw(n) => LitKind::ByteStrRaw(n),
             token::CStr => LitKind::CStr,
             token::CStrRaw(n) => LitKind::CStrRaw(n),
-            token::Err(_guar) => {
-                // This is the only place a `rustc_proc_macro::bridge::LitKind::ErrWithGuar`
-                // is constructed. Note that an `ErrorGuaranteed` is available,
-                // as required. See the comment in `to_internal`.
-                LitKind::ErrWithGuar
-            }
-            token::Bool => unreachable!(),
+            token::Err(_) | token::Bool => unreachable!(),
         }
     }
 }
@@ -89,16 +83,7 @@ impl ToInternal<token::LitKind> for LitKind {
             LitKind::ByteStrRaw(n) => token::ByteStrRaw(n),
             LitKind::CStr => token::CStr,
             LitKind::CStrRaw(n) => token::CStrRaw(n),
-            LitKind::ErrWithGuar => {
-                // This is annoying but valid. `LitKind::ErrWithGuar` would
-                // have an `ErrorGuaranteed` except that type isn't available
-                // in that crate. So we have to fake one. And we don't want to
-                // use a delayed bug because there might be lots of these,
-                // which would be expensive.
-                #[allow(deprecated)]
-                let guar = ErrorGuaranteed::unchecked_error_guaranteed();
-                token::Err(guar)
-            }
+            LitKind::ErrWithGuar => unreachable!(),
         }
     }
 }
@@ -422,6 +407,24 @@ fn cancel_diags_into_string(diags: Vec<Diag<'_>>) -> String {
     msg
 }
 
+fn check_err_literals(stream: &TokenStream) -> Result<(), String> {
+    for tree in stream.iter() {
+        match tree {
+            tokenstream::TokenTree::Token(t, _) => {
+                if let token::TokenKind::Literal(lit) = t.kind
+                    && let token::LitKind::Err(_) = lit.kind
+                {
+                    return Err("cannot parse string into token stream".to_string());
+                }
+            }
+            tokenstream::TokenTree::Delimited(_, _, _, ts) => {
+                check_err_literals(ts)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(crate) struct Rustc<'a, 'b> {
     ecx: &'a mut ExtCtxt<'b>,
     def_site: Span,
@@ -535,6 +538,9 @@ impl server::Server for Rustc<'_, '_> {
             lit = token::Lit::new(lit.kind, symbol, lit.suffix);
         }
         let token::Lit { kind, symbol, suffix } = lit;
+        if matches!(kind, token::LitKind::Err(_)) {
+            return Err("cannot parse string into literal".to_string());
+        }
         Ok(Literal {
             kind: FromInternal::from_internal(kind),
             symbol,
@@ -567,13 +573,15 @@ impl server::Server for Rustc<'_, '_> {
     }
 
     fn ts_from_str(&mut self, src: &str) -> Result<Self::TokenStream, String> {
-        source_str_to_stream(
+        let stream = source_str_to_stream(
             self.psess(),
             FileName::proc_macro_source_code(src),
             src.to_string(),
             Some(self.call_site),
         )
-        .map_err(cancel_diags_into_string)
+        .map_err(cancel_diags_into_string)?;
+        check_err_literals(&stream)?;
+        Ok(stream)
     }
 
     fn ts_to_string(&mut self, stream: &Self::TokenStream) -> String {
