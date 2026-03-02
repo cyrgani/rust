@@ -12,8 +12,11 @@ use self::Mode::*;
 // macro).
 #[derive(PartialEq, Clone, Copy)]
 enum Mode {
+    // Parsing should return an `Ok` value containing a correct token stream or literal.
     NormalOk,
+    // Parsing should return an `Err(LexError("message"))` value.
     NormalErr,
+    // Parsing currently returns a `Ok` value, but returning an `Err` would be what we want.
     OtherError,
 }
 
@@ -35,17 +38,15 @@ fn parse<T>(s: &str, mode: Mode)
 where
     T: FromStr<Err = LexError> + Debug,
 {
+    let t = print_unspanned::<T>(s);
     match mode {
         NormalOk => {
-            let t = print_unspanned::<T>(s);
             assert!(t.is_ok());
         }
         NormalErr => {
-            let t = print_unspanned::<T>(s);
             assert!(t.is_err());
         }
         OtherError => {
-            let t = print_unspanned::<T>(s);
             // For now we assert OK here, but in the future this should all move to NormalErr.
             // Any case that's failing this should go to NormalErr, probably after verifying that a
             // diagnostic did get emitted.
@@ -147,22 +148,20 @@ pub fn run() {
     stream("\u{2000}", OtherError);
 
     for parse in [stream as fn(&str, Mode), lit] {
-        // emits diagnostic(s), then returns LexError
+        // emits diagnostics, then returns LexError
         parse("r#", NormalErr);
-
-        // emits diagnostic(s), then returns Ok(Literal { kind: ErrWithGuar, .. })
-        parse("0b2", OtherError);
-        parse("0bf32", OtherError);
-        parse("0b0.0f32", OtherError);
-        parse("'\''", OtherError);
+        parse("0b2", NormalErr);
+        parse("0bf32", NormalErr);
+        parse("0b0.0f32", NormalErr);
+        parse("'\''", NormalErr);
         parse(
             "'
-'", OtherError,
+'", NormalErr,
         );
         parse(&format!("r{0}\"a\"{0}", "#".repeat(256)), NormalErr);
     }
 
-    // emits diagnostic, then, when parsing as a lit, returns LexError, otherwise ErrWithGuar
+    // emits diagnostic, then returns LexError
     lit("/*a*/ 0b2 //", NormalErr);
-    stream("/*a*/ 0b2 //", OtherError);
+    stream("/*a*/ 0b2 //", NormalErr);
 }
