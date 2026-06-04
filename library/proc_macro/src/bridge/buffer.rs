@@ -55,22 +55,6 @@ impl Buffer {
         mem::take(self)
     }
 
-    // We have the array method separate from extending from a slice. This is
-    // because in the case of small arrays, codegen can be more efficient
-    // (avoiding a memmove call). With extend_from_slice, LLVM at least
-    // currently is not able to make that optimization.
-    #[inline]
-    pub(super) fn extend_from_array<const N: usize>(&mut self, xs: &[u8; N]) {
-        if xs.len() > (self.capacity - self.len) {
-            let b = self.take();
-            *self = (b.reserve)(b, xs.len());
-        }
-        unsafe {
-            xs.as_ptr().copy_to_nonoverlapping(self.data.add(self.len), xs.len());
-            self.len += xs.len();
-        }
-    }
-
     #[inline]
     pub(super) fn extend_from_slice(&mut self, xs: &[u8]) {
         if xs.len() > (self.capacity - self.len) {
