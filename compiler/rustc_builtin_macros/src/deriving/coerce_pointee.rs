@@ -263,7 +263,7 @@ pub(crate) fn expand_deriving_coerce_pointee(
         }
     }
 
-    let extra_param = cx.typaram(span, Ident::new(sym::__S, span), self_bounds, None);
+    let extra_param = cx.typaram(Ident::new(sym::__S, span), self_bounds, None);
     impl_generics.params.insert(pointee_param_idx + 1, extra_param);
 
     // Add the impl blocks for `DispatchFromDyn` and `CoerceUnsized`.

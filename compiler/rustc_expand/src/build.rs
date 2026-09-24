@@ -138,13 +138,12 @@ impl<'a> ExtCtxt<'a> {
 
     pub fn typaram(
         &self,
-        span: Span,
         ident: Ident,
         bounds: ast::GenericBounds,
         default: Option<Box<ast::Ty>>,
     ) -> ast::GenericParam {
         ast::GenericParam {
-            ident: ident.with_span_pos(span),
+            ident,
             id: ast::DUMMY_NODE_ID,
             attrs: AttrVec::new(),
             bounds,
@@ -154,15 +153,10 @@ impl<'a> ExtCtxt<'a> {
         }
     }
 
-    pub fn lifetime_param(
-        &self,
-        span: Span,
-        ident: Ident,
-        bounds: ast::GenericBounds,
-    ) -> ast::GenericParam {
+    pub fn lifetime_param(&self, ident: Ident, bounds: ast::GenericBounds) -> ast::GenericParam {
         ast::GenericParam {
             id: ast::DUMMY_NODE_ID,
-            ident: ident.with_span_pos(span),
+            ident,
             attrs: AttrVec::new(),
             bounds,
             is_placeholder: false,
@@ -173,7 +167,6 @@ impl<'a> ExtCtxt<'a> {
 
     pub fn const_param(
         &self,
-        span: Span,
         ident: Ident,
         bounds: ast::GenericBounds,
         ty: Box<ast::Ty>,
@@ -181,7 +174,7 @@ impl<'a> ExtCtxt<'a> {
     ) -> ast::GenericParam {
         ast::GenericParam {
             id: ast::DUMMY_NODE_ID,
-            ident: ident.with_span_pos(span),
+            ident,
             attrs: AttrVec::new(),
             bounds,
             is_placeholder: false,
