@@ -268,10 +268,6 @@ impl<'a> ExtCtxt<'a> {
         self.stmt_local(local, span)
     }
 
-    pub fn stmt_semi(&self, expr: Box<ast::Expr>) -> ast::Stmt {
-        ast::Stmt { id: ast::DUMMY_NODE_ID, span: expr.span, kind: ast::StmtKind::Semi(expr) }
-    }
-
     pub fn stmt_local(&self, local: Box<ast::Local>, span: Span) -> ast::Stmt {
         ast::Stmt { id: ast::DUMMY_NODE_ID, kind: ast::StmtKind::Let(local), span }
     }
@@ -370,12 +366,6 @@ impl<'a> ExtCtxt<'a> {
         args: ThinVec<Box<ast::Expr>>,
     ) -> Box<ast::Expr> {
         self.expr(span, ast::ExprKind::Call(expr, args))
-    }
-    pub fn expr_loop(&self, sp: Span, block: Box<ast::Block>) -> Box<ast::Expr> {
-        self.expr(sp, ast::ExprKind::Loop(block, None, sp))
-    }
-    pub fn expr_asm(&self, sp: Span, expr: Box<ast::InlineAsm>) -> Box<ast::Expr> {
-        self.expr(sp, ast::ExprKind::InlineAsm(expr))
     }
     pub fn expr_call_ident(
         &self,
@@ -483,53 +473,9 @@ impl<'a> ExtCtxt<'a> {
         self.expr(sp, ast::ExprKind::Tup(exprs))
     }
 
-    pub fn expr_unreachable(&self, span: Span) -> Box<ast::Expr> {
-        self.expr_macro_call(
-            span,
-            self.macro_call(
-                span,
-                self.path_global(
-                    span,
-                    [sym::std, sym::unreachable].map(|s| Ident::new(s, span)).to_vec(),
-                ),
-                Delimiter::Parenthesis,
-                TokenStream::default(),
-            ),
-        )
-    }
-
     pub fn expr_ok(&self, sp: Span, expr: Box<ast::Expr>) -> Box<ast::Expr> {
         let ok = self.std_path(&[sym::result, sym::Result, sym::Ok]);
         self.expr_call_global(sp, ok, thin_vec![expr])
-    }
-
-    pub fn expr_try(&self, sp: Span, head: Box<ast::Expr>) -> Box<ast::Expr> {
-        let ok = self.std_path(&[sym::result, sym::Result, sym::Ok]);
-        let ok_path = self.path_global(sp, ok);
-        let err = self.std_path(&[sym::result, sym::Result, sym::Err]);
-        let err_path = self.path_global(sp, err);
-
-        let binding_variable = Ident::new(sym::__try_var, sp);
-        let binding_pat = self.pat_ident(sp, binding_variable);
-        let binding_expr = self.expr_ident(sp, binding_variable);
-
-        // `Ok(__try_var)` pattern
-        let ok_pat = self.pat_tuple_struct(sp, ok_path, thin_vec![binding_pat.clone()]);
-
-        // `Err(__try_var)` (pattern and expression respectively)
-        let err_pat = self.pat_tuple_struct(sp, err_path.clone(), thin_vec![binding_pat]);
-        let err_inner_expr =
-            self.expr_call(sp, self.expr_path(err_path), thin_vec![binding_expr.clone()]);
-        // `return Err(__try_var)`
-        let err_expr = self.expr(sp, ast::ExprKind::Ret(Some(err_inner_expr)));
-
-        // `Ok(__try_var) => __try_var`
-        let ok_arm = self.arm(sp, ok_pat, binding_expr);
-        // `Err(__try_var) => return Err(__try_var)`
-        let err_arm = self.arm(sp, err_pat, err_expr);
-
-        // `match head { Ok() => ..., Err() => ... }`
-        self.expr_match(sp, head, thin_vec![ok_arm, err_arm])
     }
 
     pub fn pat(&self, span: Span, kind: PatKind) -> ast::Pat {
@@ -537,9 +483,6 @@ impl<'a> ExtCtxt<'a> {
     }
     pub fn pat_wild(&self, span: Span) -> ast::Pat {
         self.pat(span, PatKind::Wild)
-    }
-    pub fn pat_lit(&self, span: Span, expr: Box<ast::Expr>) -> ast::Pat {
-        self.pat(span, PatKind::Expr(expr))
     }
     pub fn pat_ident(&self, span: Span, ident: Ident) -> ast::Pat {
         self.pat_ident_binding_mode(span, ident, ast::BindingMode::NONE)
@@ -593,10 +536,6 @@ impl<'a> ExtCtxt<'a> {
             id: ast::DUMMY_NODE_ID,
             is_placeholder: false,
         }
-    }
-
-    pub fn arm_unreachable(&self, span: Span) -> ast::Arm {
-        self.arm(span, self.pat_wild(span), self.expr_unreachable(span))
     }
 
     pub fn expr_match(
@@ -653,15 +592,6 @@ impl<'a> ExtCtxt<'a> {
 
     pub fn lambda1(&self, span: Span, body: Box<ast::Expr>, ident: Ident) -> Box<ast::Expr> {
         self.lambda(span, vec![ident], body)
-    }
-
-    pub fn lambda_stmts_1(
-        &self,
-        span: Span,
-        stmts: ThinVec<ast::Stmt>,
-        ident: Ident,
-    ) -> Box<ast::Expr> {
-        self.lambda1(span, self.expr_block(self.block(span, stmts)), ident)
     }
 
     pub fn param(&self, span: Span, ident: Ident, ty: Box<ast::Ty>) -> ast::Param {
