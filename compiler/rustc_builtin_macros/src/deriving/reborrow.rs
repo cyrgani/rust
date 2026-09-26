@@ -1,13 +1,12 @@
-use rustc_ast::{self as ast, AttrArgs, GenericArg, GenericParamKind, Generics, ItemKind, token};
+use rustc_ast::{self as ast, AttrArgs, GenericParamKind, Generics, ItemKind, token};
 use rustc_errors::E0802;
 use rustc_expand::base::ExtCtxt;
 use rustc_macros::Diagnostic;
 use rustc_span::{Ident, Span, Symbol, sym};
 use thin_vec::ThinVec;
 
-macro_rules! path {
-    ($span:expr, $($part:ident)::*) => { vec![$(Ident::new(sym::$part, $span),)*] }
-}
+use crate::deriving::generic::*;
+use crate::deriving::new_path;
 
 pub(crate) fn expand_deriving_reborrow(
     cx: &ExtCtxt<'_>,
@@ -109,9 +108,7 @@ fn push_marker_impl(
     trait_args: Vec<Box<ast::Ty>>,
     push: &mut dyn FnMut(Box<ast::Item>),
 ) {
-    let mut trait_parts = path!(span, core::marker);
-    trait_parts.push(Ident::new(trait_name, span));
-    let trait_path = cx.path_all(span, true, trait_parts, trait_args);
+    let trait_path = new_path(cx, span, &[sym::core, sym::marker, trait_name], trait_args);
     let trait_ref = cx.trait_ref(trait_path);
 
     let self_params: Vec<_> =

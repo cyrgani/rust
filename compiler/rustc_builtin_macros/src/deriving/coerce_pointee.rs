@@ -12,11 +12,9 @@ use rustc_macros::Diagnostic;
 use rustc_span::{Ident, Span, Symbol, sym};
 use thin_vec::{ThinVec, thin_vec};
 
+use crate::deriving::generic::*;
+use crate::deriving::{new_path, path_std};
 use crate::diagnostics;
-
-macro_rules! path {
-    ($span:expr, $($part:ident)::*) => { vec![$(Ident::new(sym::$part, $span),)*] }
-}
 
 pub(crate) fn expand_deriving_coerce_pointee(
     cx: &ExtCtxt<'_>,
@@ -91,8 +89,7 @@ pub(crate) fn expand_deriving_coerce_pointee(
     let attrs = thin_vec![cx.attr_word(sym::automatically_derived, span),];
     // # Validity assertion which will be checked later in `rustc_hir_analysis::coherence::builtins`.
     {
-        let trait_path =
-            cx.path_all(span, true, path!(span, core::marker::CoercePointeeValidated), vec![]);
+        let trait_path = path_std!(cx, span, marker::CoercePointeeValidated);
         let trait_ref = cx.trait_ref(trait_path);
         push(
             cx.item(
@@ -137,9 +134,7 @@ pub(crate) fn expand_deriving_coerce_pointee(
         );
     }
     let mut add_impl_block = |generics, trait_symbol, trait_args| {
-        let mut parts = path!(span, core::ops);
-        parts.push(Ident::new(trait_symbol, span));
-        let trait_path = cx.path_all(span, true, parts, trait_args);
+        let trait_path = new_path(cx, span, &[sym::ops, trait_symbol], trait_args);
         let trait_ref = cx.trait_ref(trait_path);
         let item = cx.item(
             span,
@@ -189,7 +184,7 @@ pub(crate) fn expand_deriving_coerce_pointee(
             return;
         }
         let arg = GenericArg::Type(s_ty.clone());
-        let unsize = cx.path_all(span, true, path!(span, core::marker::Unsize), vec![arg]);
+        let unsize = cx.path_all(span, true, cx.std_path(&[sym::marker, sym::Unsize]), vec![arg]);
         pointee.bounds.push(cx.trait_bound(unsize, false));
         // Drop `#[pointee]` attribute since it should not be recognized outside `derive(CoercePointee)`
         pointee.attrs.retain(|attr| !attr.has_name(sym::pointee));
@@ -310,7 +305,7 @@ pub(crate) fn expand_deriving_coerce_pointee(
     impl_generics.params.insert(pointee_param_idx + 1, extra_param);
 
     // Add the impl blocks for `DispatchFromDyn` and `CoerceUnsized`.
-    let gen_args = vec![GenericArg::Type(alt_self_type)];
+    let gen_args = vec![alt_self_type];
     add_impl_block(impl_generics.clone(), sym::DispatchFromDyn, gen_args.clone());
     add_impl_block(impl_generics, sym::CoerceUnsized, gen_args);
 }
