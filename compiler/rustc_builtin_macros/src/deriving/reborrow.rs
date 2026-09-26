@@ -1,4 +1,4 @@
-use rustc_ast::{self as ast, AttrArgs, GenericParamKind, Generics, ItemKind, token};
+use rustc_ast::{self as ast, AttrArgs, Generics, ItemKind, token};
 use rustc_errors::E0802;
 use rustc_expand::base::ExtCtxt;
 use rustc_macros::Diagnostic;
@@ -119,7 +119,7 @@ fn push_marker_impl(
         span,
         thin_vec::thin_vec![cx.attr_word(sym::automatically_derived, span)],
         ast::ItemKind::Impl(ast::Impl {
-            generics: impl_generics(cx, generics),
+            generics: generics_without_defaults(generics),
             of_trait: Some(Box::new(ast::TraitImplHeader {
                 safety: ast::Safety::Default,
                 polarity: ast::ImplPolarity::Positive,
@@ -131,35 +131,6 @@ fn push_marker_impl(
             items: ThinVec::new(),
         }),
     ));
-}
-
-fn impl_generics(cx: &ExtCtxt<'_>, generics: &Generics) -> Generics {
-    // Rebuild the generic parameter declarations because defaults are allowed on structs but
-    // rejected on impls. Preserve lifetime, type, and const parameters and their bounds, const
-    // parameter types, and the where-clause, while omitting type and const defaults.
-    Generics {
-        params: generics
-            .params
-            .iter()
-            .map(|param| match &param.kind {
-                GenericParamKind::Lifetime => {
-                    cx.lifetime_param(param.span(), param.ident, param.bounds.clone())
-                }
-                GenericParamKind::Type { default: _ } => {
-                    cx.typaram(param.span(), param.ident, param.bounds.clone(), None)
-                }
-                GenericParamKind::Const { ty, span: _, default: _ } => cx.const_param(
-                    param.span(),
-                    param.ident,
-                    param.bounds.clone(),
-                    ty.clone(),
-                    None,
-                ),
-            })
-            .collect(),
-        where_clause: generics.where_clause.clone(),
-        span: generics.span,
-    }
 }
 
 #[derive(Diagnostic)]

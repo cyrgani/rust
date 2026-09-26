@@ -2,8 +2,8 @@ use ast::HasAttrs;
 use rustc_ast::mut_visit::MutVisitor;
 use rustc_ast::visit::{BoundKind, Visitor};
 use rustc_ast::{
-    self as ast, GenericArg, GenericBound, GenericParamKind, Generics, ItemKind,
-    TraitBoundModifiers, VariantData, WherePredicate,
+    self as ast, GenericArg, GenericBound, GenericParamKind, ItemKind, TraitBoundModifiers,
+    VariantData, WherePredicate,
 };
 use rustc_data_structures::flat_map_in_place::FlatMapInPlace;
 use rustc_errors::E0802;
@@ -91,47 +91,22 @@ pub(crate) fn expand_deriving_coerce_pointee(
     {
         let trait_path = path_std!(cx, span, marker::CoercePointeeValidated);
         let trait_ref = cx.trait_ref(trait_path);
-        push(
-            cx.item(
-                span,
-                attrs.clone(),
-                ast::ItemKind::Impl(ast::Impl {
-                    generics: Generics {
-                        params: generics
-                            .params
-                            .iter()
-                            .map(|p| match &p.kind {
-                                GenericParamKind::Lifetime => {
-                                    cx.lifetime_param(p.span(), p.ident, p.bounds.clone())
-                                }
-                                GenericParamKind::Type { default: _ } => {
-                                    cx.typaram(p.span(), p.ident, p.bounds.clone(), None)
-                                }
-                                GenericParamKind::Const { ty, span: _, default: _ } => cx
-                                    .const_param(
-                                        p.span(),
-                                        p.ident,
-                                        p.bounds.clone(),
-                                        ty.clone(),
-                                        None,
-                                    ),
-                            })
-                            .collect(),
-                        where_clause: generics.where_clause.clone(),
-                        span: generics.span,
-                    },
-                    of_trait: Some(Box::new(ast::TraitImplHeader {
-                        safety: ast::Safety::Default,
-                        polarity: ast::ImplPolarity::Positive,
-                        defaultness: ast::Defaultness::Implicit,
-                        trait_ref,
-                    })),
-                    constness: ast::Const::No,
-                    self_ty: self_type.clone(),
-                    items: ThinVec::new(),
-                }),
-            ),
-        );
+        push(cx.item(
+            span,
+            attrs.clone(),
+            ast::ItemKind::Impl(ast::Impl {
+                generics: generics_without_defaults(generics),
+                of_trait: Some(Box::new(ast::TraitImplHeader {
+                    safety: ast::Safety::Default,
+                    polarity: ast::ImplPolarity::Positive,
+                    defaultness: ast::Defaultness::Implicit,
+                    trait_ref,
+                })),
+                constness: ast::Const::No,
+                self_ty: self_type.clone(),
+                items: ThinVec::new(),
+            }),
+        ));
     }
     let mut add_impl_block = |generics, trait_symbol, trait_args| {
         let trait_path = new_path(cx, span, &[sym::ops, trait_symbol], trait_args);

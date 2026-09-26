@@ -1237,3 +1237,24 @@ pub(crate) fn generic_param_to_arg(cx: &ExtCtxt<'_>, p: &GenericParam, span: Spa
         GenericParamKind::Const { .. } => GenericArg::Const(cx.const_ident(span, p.ident)),
     }
 }
+
+pub(crate) fn generics_without_defaults(g: &Generics) -> Generics {
+    Generics {
+        params: g
+            .params
+            .iter()
+            .map(|p| {
+                let mut p = p.clone();
+                match &mut p.kind {
+                    ast::GenericParamKind::Const { default, .. } => *default = None,
+                    ast::GenericParamKind::Type { default } => *default = None,
+                    ast::GenericParamKind::Lifetime => {}
+                };
+                p.attrs.clear();
+                p
+            })
+            .collect(),
+        where_clause: g.where_clause.clone(),
+        span: g.span,
+    }
+}
