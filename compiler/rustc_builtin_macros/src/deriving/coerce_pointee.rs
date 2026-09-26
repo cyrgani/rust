@@ -43,15 +43,8 @@ pub(crate) fn expand_deriving_coerce_pointee(
     };
 
     // Convert generic parameters (from the struct) into generic args.
-    let self_params: Vec<_> = generics
-        .params
-        .iter()
-        .map(|p| match p.kind {
-            GenericParamKind::Lifetime => GenericArg::Lifetime(cx.lifetime(p.span(), p.ident)),
-            GenericParamKind::Type { .. } => GenericArg::Type(cx.ty_ident(p.span(), p.ident)),
-            GenericParamKind::Const { .. } => GenericArg::Const(cx.const_ident(p.span(), p.ident)),
-        })
-        .collect();
+    let self_params: Vec<_> =
+        generics.params.iter().map(|p| generic_param_to_arg(cx, p, p.span())).collect();
     let type_params: Vec<_> = generics
         .params
         .iter()

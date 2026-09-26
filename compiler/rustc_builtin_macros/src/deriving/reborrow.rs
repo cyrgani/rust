@@ -37,15 +37,7 @@ pub(crate) fn expand_deriving_coerce_shared(
         return;
     };
 
-    push_marker_impl(
-        cx,
-        span,
-        ident,
-        generics,
-        sym::CoerceShared,
-        vec![GenericArg::Type(target)],
-        push,
-    );
+    push_marker_impl(cx, span, ident, generics, sym::CoerceShared, vec![target], push);
 }
 
 fn struct_def<'a>(
@@ -114,7 +106,7 @@ fn push_marker_impl(
     ident: Ident,
     generics: &Generics,
     trait_name: Symbol,
-    trait_args: Vec<GenericArg>,
+    trait_args: Vec<Box<ast::Ty>>,
     push: &mut dyn FnMut(Box<ast::Item>),
 ) {
     let mut trait_parts = path!(span, core::marker);
@@ -122,21 +114,8 @@ fn push_marker_impl(
     let trait_path = cx.path_all(span, true, trait_parts, trait_args);
     let trait_ref = cx.trait_ref(trait_path);
 
-    let self_params: Vec<_> = generics
-        .params
-        .iter()
-        .map(|param| match param.kind {
-            GenericParamKind::Lifetime => {
-                GenericArg::Lifetime(cx.lifetime(param.span(), param.ident))
-            }
-            GenericParamKind::Type { .. } => {
-                GenericArg::Type(cx.ty_ident(param.span(), param.ident))
-            }
-            GenericParamKind::Const { .. } => {
-                GenericArg::Const(cx.const_ident(param.span(), param.ident))
-            }
-        })
-        .collect();
+    let self_params: Vec<_> =
+        generics.params.iter().map(|p| generic_param_to_arg(cx, p, p.span())).collect();
     let self_ty = cx.ty_path(cx.path_all(span, false, vec![ident], self_params));
 
     push(cx.item(

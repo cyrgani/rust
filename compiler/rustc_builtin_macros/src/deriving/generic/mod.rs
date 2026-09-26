@@ -182,8 +182,8 @@ pub(crate) use rustc_ast as ast;
 use rustc_ast::token::{IdentKind, LitKind, Token, TokenKind};
 use rustc_ast::tokenstream::{DelimSpan, Spacing, TokenTree};
 use rustc_ast::{
-    AttrArgs, DelimArgs, EnumDef, Expr, GenericArg, GenericParamKind, Generics, Safety, SelfKind,
-    VariantData,
+    AttrArgs, DelimArgs, EnumDef, Expr, GenericArg, GenericParam, GenericParamKind, Generics,
+    Safety, SelfKind, VariantData,
 };
 use rustc_attr_ir::{Attribute, AttributeKind, ReprPacked};
 use rustc_attr_parsing::AttributeParser;
@@ -708,17 +708,7 @@ impl<'a> TraitDef<'a> {
         let self_params: Vec<_> = generics
             .params
             .iter()
-            .map(|param| match param.kind {
-                GenericParamKind::Lifetime => {
-                    GenericArg::Lifetime(cx.lifetime(param.ident.span.with_ctxt(ctxt), param.ident))
-                }
-                GenericParamKind::Type { .. } => {
-                    GenericArg::Type(cx.ty_ident(param.ident.span.with_ctxt(ctxt), param.ident))
-                }
-                GenericParamKind::Const { .. } => {
-                    GenericArg::Const(cx.const_ident(param.ident.span.with_ctxt(ctxt), param.ident))
-                }
-            })
+            .map(|param| generic_param_to_arg(cx, param, param.ident.span.with_ctxt(ctxt)))
             .collect();
 
         // Create the type of `self`.
@@ -1238,4 +1228,12 @@ fn create_struct_field_access_fields(
             })
             .collect()
     })
+}
+
+pub(crate) fn generic_param_to_arg(cx: &ExtCtxt<'_>, p: &GenericParam, span: Span) -> GenericArg {
+    match p.kind {
+        GenericParamKind::Lifetime => GenericArg::Lifetime(cx.lifetime(span, p.ident)),
+        GenericParamKind::Type { .. } => GenericArg::Type(cx.ty_ident(span, p.ident)),
+        GenericParamKind::Const { .. } => GenericArg::Const(cx.const_ident(span, p.ident)),
+    }
 }
