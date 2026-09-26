@@ -14,9 +14,9 @@ mod llvm_enzyme {
     use rustc_ast::tokenstream::*;
     use rustc_ast::visit::AssocCtxt::*;
     use rustc_ast::{
-        self as ast, AngleBracketedArg, AngleBracketedArgs, AnonConst, AssocItemKind, BindingMode,
-        FnRetTy, FnSig, GenericArg, GenericArgs, GenericParamKind, Generics, ItemKind,
-        MetaItemInner, PatKind, Path, PathSegment, TyKind, Visibility,
+        self as ast, AngleBracketedArg, AngleBracketedArgs, AnonConst, AssocItemKind, FnRetTy,
+        FnSig, GenericArg, GenericArgs, GenericParamKind, Generics, ItemKind, MetaItemInner,
+        PatKind, Path, PathSegment, TyKind, Visibility,
     };
     use rustc_attr_ir::RustcAutodiff;
     use rustc_expand::base::{Annotatable, ExtCtxt};
@@ -459,12 +459,7 @@ mod llvm_enzyme {
             Annotatable::Stmt(_) => {
                 let mut d_fn = ecx.item(span, d_attrs, ItemKind::Fn(d_fn));
                 d_fn.vis = vis;
-
-                Annotatable::Stmt(Box::new(ast::Stmt {
-                    id: ast::DUMMY_NODE_ID,
-                    kind: ast::StmtKind::Item(d_fn),
-                    span,
-                }))
+                Annotatable::Stmt(Box::new(ecx.stmt_item(span, d_fn)))
             }
             _ => {
                 unreachable!("item kind checked previously")
@@ -727,12 +722,8 @@ mod llvm_enzyme {
                         let name: String = format!("d{}_{}", old_name, i);
                         new_inputs.push(name.clone());
                         let ident = Ident::from_str_and_span(&name, shadow_arg.pat.span);
-                        *shadow_arg.pat = ast::Pat {
-                            id: ast::DUMMY_NODE_ID,
-                            kind: PatKind::Ident(BindingMode::NONE, ident, None),
-                            span: shadow_arg.pat.span,
-                        };
-                        d_inputs.push(shadow_arg.clone());
+                        *shadow_arg.pat = ecx.pat_ident(shadow_arg.pat.span, ident);
+                        d_inputs.push(shadow_arg);
                     }
                 }
                 DiffActivity::Dual
@@ -758,12 +749,9 @@ mod llvm_enzyme {
                         let name: String = format!("b{}_{}", old_name, i);
                         new_inputs.push(name.clone());
                         let ident = Ident::from_str_and_span(&name, shadow_arg.pat.span);
-                        *shadow_arg.pat = ast::Pat {
-                            id: ast::DUMMY_NODE_ID,
-                            kind: PatKind::Ident(BindingMode::NONE, ident, None),
-                            span: shadow_arg.pat.span,
-                        };
-                        d_inputs.push(shadow_arg.clone());
+
+                        *shadow_arg.pat = ecx.pat_ident(shadow_arg.pat.span, ident);
+                        d_inputs.push(shadow_arg);
                     }
                 }
                 DiffActivity::Const => {
@@ -798,18 +786,7 @@ mod llvm_enzyme {
                     };
                     let name = "dret".to_string();
                     let ident = Ident::from_str_and_span(&name, ty.span);
-                    let shadow_arg = ast::Param {
-                        attrs: ThinVec::new(),
-                        ty: ty.clone(),
-                        pat: Box::new(ast::Pat {
-                            id: ast::DUMMY_NODE_ID,
-                            kind: PatKind::Ident(BindingMode::NONE, ident, None),
-                            span: ty.span,
-                        }),
-                        id: ast::DUMMY_NODE_ID,
-                        span: ty.span,
-                        is_placeholder: false,
-                    };
+                    let shadow_arg = ecx.param(ty.span, ident, ty);
                     d_inputs.push(shadow_arg);
                     new_inputs.push(name);
                 }
@@ -823,8 +800,7 @@ mod llvm_enzyme {
                 FnRetTy::Ty(ref ty) => ty.clone(),
                 FnRetTy::Default(span) => {
                     // We want to return std::hint::black_box(()).
-                    let kind = TyKind::Tup(ThinVec::new());
-                    let ty = Box::new(rustc_ast::Ty { kind, id: ast::DUMMY_NODE_ID, span });
+                    let ty = ecx.ty_unit(span);
                     d_decl.output = FnRetTy::Ty(ty.clone());
                     assert!(matches!(x.ret_activity, DiffActivity::None));
                     // this won't be used below, so any type would be fine.
