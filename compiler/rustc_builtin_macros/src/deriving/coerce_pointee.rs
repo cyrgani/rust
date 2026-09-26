@@ -90,42 +90,29 @@ pub(crate) fn expand_deriving_coerce_pointee(
     // # Validity assertion which will be checked later in `rustc_hir_analysis::coherence::builtins`.
     {
         let trait_path = path_std!(cx, span, marker::CoercePointeeValidated);
-        let trait_ref = cx.trait_ref(trait_path);
-        push(cx.item(
+        push(cx.item_trait_impl(
             span,
             attrs.clone(),
-            ast::ItemKind::Impl(ast::Impl {
-                generics: generics_without_defaults(generics),
-                of_trait: Some(Box::new(ast::TraitImplHeader {
-                    safety: ast::Safety::Default,
-                    polarity: ast::ImplPolarity::Positive,
-                    defaultness: ast::Defaultness::Implicit,
-                    trait_ref,
-                })),
-                constness: ast::Const::No,
-                self_ty: self_type.clone(),
-                items: ThinVec::new(),
-            }),
+            generics_without_defaults(generics),
+            ast::Safety::Default,
+            false,
+            cx.trait_ref(trait_path),
+            self_type.clone(),
+            ThinVec::new(),
         ));
     }
     let mut add_impl_block = |generics, trait_symbol, trait_args| {
         let trait_path = new_path(cx, span, &[sym::ops, trait_symbol], trait_args);
         let trait_ref = cx.trait_ref(trait_path);
-        let item = cx.item(
+        let item = cx.item_trait_impl(
             span,
             attrs.clone(),
-            ast::ItemKind::Impl(ast::Impl {
-                generics,
-                of_trait: Some(Box::new(ast::TraitImplHeader {
-                    safety: ast::Safety::Default,
-                    polarity: ast::ImplPolarity::Positive,
-                    defaultness: ast::Defaultness::Implicit,
-                    trait_ref,
-                })),
-                constness: ast::Const::No,
-                self_ty: self_type.clone(),
-                items: ThinVec::new(),
-            }),
+            generics,
+            ast::Safety::Default,
+            false,
+            trait_ref,
+            self_type.clone(),
+            ThinVec::new(),
         );
         push(item);
     };

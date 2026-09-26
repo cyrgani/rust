@@ -702,6 +702,35 @@ impl<'a> ExtCtxt<'a> {
         })
     }
 
+    pub fn item_trait_impl(
+        &self,
+        span: Span,
+        attrs: ast::AttrVec,
+        generics: ast::Generics,
+        safety: ast::Safety,
+        is_const: bool,
+        trait_ref: ast::TraitRef,
+        self_ty: Box<ast::Ty>,
+        items: ThinVec<Box<ast::AssocItem>>,
+    ) -> Box<ast::Item> {
+        self.item(
+            span,
+            attrs,
+            ast::ItemKind::Impl(ast::Impl {
+                generics,
+                of_trait: Some(Box::new(ast::TraitImplHeader {
+                    safety,
+                    polarity: ast::ImplPolarity::Positive,
+                    defaultness: ast::Defaultness::Implicit,
+                    trait_ref,
+                })),
+                constness: if is_const { ast::Const::Yes(DUMMY_SP) } else { ast::Const::No },
+                self_ty,
+                items,
+            }),
+        )
+    }
+
     pub fn item_static(
         &self,
         span: Span,

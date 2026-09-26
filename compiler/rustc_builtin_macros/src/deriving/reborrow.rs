@@ -115,21 +115,15 @@ fn push_marker_impl(
         generics.params.iter().map(|p| generic_param_to_arg(cx, p, p.span())).collect();
     let self_ty = cx.ty_path(cx.path_all(span, false, vec![ident], self_params));
 
-    push(cx.item(
+    push(cx.item_trait_impl(
         span,
         thin_vec::thin_vec![cx.attr_word(sym::automatically_derived, span)],
-        ast::ItemKind::Impl(ast::Impl {
-            generics: generics_without_defaults(generics),
-            of_trait: Some(Box::new(ast::TraitImplHeader {
-                safety: ast::Safety::Default,
-                polarity: ast::ImplPolarity::Positive,
-                defaultness: ast::Defaultness::Implicit,
-                trait_ref,
-            })),
-            constness: ast::Const::No,
-            self_ty,
-            items: ThinVec::new(),
-        }),
+        generics_without_defaults(generics),
+        ast::Safety::Default,
+        false,
+        trait_ref,
+        self_ty,
+        ThinVec::new(),
     ));
 }
 

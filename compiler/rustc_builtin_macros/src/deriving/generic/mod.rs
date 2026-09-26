@@ -188,7 +188,7 @@ use rustc_ast::{
 use rustc_attr_ir::{Attribute, AttributeKind, ReprPacked};
 use rustc_attr_parsing::AttributeParser;
 use rustc_expand::base::ExtCtxt;
-use rustc_span::{DUMMY_SP, Ident, Span, Symbol, kw, respan, sym};
+use rustc_span::{Ident, Span, Symbol, kw, respan, sym};
 pub(crate) use smallvec::{SmallVec, smallvec};
 use thin_vec::{ThinVec, thin_vec};
 
@@ -760,21 +760,15 @@ impl<'a> TraitDef<'a> {
             attrs.push(cx.attr_nested_word(sym::doc, sym::hidden, self.span));
         }
 
-        cx.item(
+        cx.item_trait_impl(
             self.span,
             attrs,
-            ast::ItemKind::Impl(ast::Impl {
-                generics: trait_generics,
-                of_trait: Some(Box::new(ast::TraitImplHeader {
-                    safety: self.safety,
-                    polarity: ast::ImplPolarity::Positive,
-                    defaultness: ast::Defaultness::Implicit,
-                    trait_ref,
-                })),
-                constness: if self.is_const { ast::Const::Yes(DUMMY_SP) } else { ast::Const::No },
-                self_ty: self_type,
-                items: methods.collect(),
-            }),
+            trait_generics,
+            self.safety,
+            self.is_const,
+            trait_ref,
+            self_type,
+            methods.collect(),
         )
     }
 }
