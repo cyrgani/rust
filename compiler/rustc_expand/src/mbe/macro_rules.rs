@@ -45,7 +45,7 @@ use crate::mbe::quoted::{RulePart, parse_one_tt};
 use crate::mbe::transcribe::transcribe;
 use crate::mbe::{self, KleeneOp};
 
-pub(crate) struct ParserAnyMacro<'a, 'b> {
+pub struct ParserAnyMacro<'a, 'b> {
     parser: Parser<'a>,
 
     /// Span of the expansion site of the macro this parser is for
