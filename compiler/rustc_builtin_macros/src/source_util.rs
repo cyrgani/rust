@@ -266,7 +266,7 @@ fn load_binary_file(
     original_path: &Path,
     macro_span: Span,
     path_span: Span,
-) -> Result<(Arc<[u8]>, Span), Box<dyn MacResult>> {
+) -> Result<(Arc<[u8]>, Span), Box<DummyResult>> {
     let resolved_path = match cx.sess.resolve_path(original_path, macro_span) {
         Ok(path) => path,
         Err(err) => {

@@ -23,27 +23,19 @@ struct CfgSelectResult<'cx, 'sess> {
     cfg_entry: CfgEntry,
 }
 
-fn tts_to_mac_result<'cx, 'sess>(
-    ecx: &'cx mut ExtCtxt<'sess>,
-    site_span: Span,
-    tts: TokenStream,
-    span: Span,
-) -> Box<dyn MacResult + 'cx> {
-    ExpandResult::from_tts(ecx, tts, site_span, span, Ident::with_dummy_span(sym::cfg_select))
-}
-
 macro_rules! forward_to_parser_any_macro {
     ($method_name:ident, $ret_ty:ty, $other:expr, $selected:expr) => {
         fn $method_name(self: Box<Self>) -> Option<$ret_ty> {
             let CfgSelectResult { ecx, site_span, selected_tts, selected_span, cfg_entry, .. } =
                 *self;
 
+            let macro_ident = Ident::with_dummy_span(sym::cfg_select);
             for (cfg_entry, tts, span) in self.other_branches.into_iter_tts() {
-                let result = tts_to_mac_result(ecx, site_span, tts, span).$method_name();
+                let result = ExpandResult::from_tts(ecx, tts, site_span, span, macro_ident).$method_name();
                 $other(&mut *ecx, cfg_entry, span, result);
             }
 
-            tts_to_mac_result(ecx, site_span, selected_tts, selected_span)
+            ExpandResult::from_tts(ecx, selected_tts, site_span, selected_span, macro_ident)
                 .$method_name()
                 .map(|elements| $selected(&mut *ecx, cfg_entry, elements))
         }

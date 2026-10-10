@@ -266,13 +266,13 @@ impl<'cx> MacroExpanderResult<'cx> {
     /// Creates a [`MacroExpanderResult::Ready`] from a [`TokenStream`].
     ///
     /// The `TokenStream` is forwarded without any expansion.
-    pub fn from_tts(
+    pub fn from_tts<'a>(
         cx: &'cx mut ExtCtxt<'_>,
         tts: TokenStream,
         site_span: Span,
         arm_span: Span,
         macro_ident: Ident,
-    ) -> Box<dyn MacResult + 'cx> {
+    ) -> Box<ParserAnyMacro<'cx, 'a>> {
         // Emit SEMICOLON_IN_EXPRESSIONS_FROM_MACROS here, rather than the NON_LOCAL version.
         let is_local = true;
         let parser =
@@ -511,15 +511,15 @@ pub struct MacEager {
 }
 
 impl MacEager {
-    pub fn expr(v: Box<ast::Expr>) -> Box<dyn MacResult> {
+    pub fn expr(v: Box<ast::Expr>) -> Box<MacEager> {
         Box::new(MacEager { expr: Some(v), ..Default::default() })
     }
 
-    pub fn items(v: SmallVec<[Box<ast::Item>; 1]>) -> Box<dyn MacResult> {
+    pub fn items(v: SmallVec<[Box<ast::Item>; 1]>) -> Box<MacEager> {
         Box::new(MacEager { items: Some(v), ..Default::default() })
     }
 
-    pub fn ty(v: Box<ast::Ty>) -> Box<dyn MacResult> {
+    pub fn ty(v: Box<ast::Ty>) -> Box<MacEager> {
         Box::new(MacEager { ty: Some(v), ..Default::default() })
     }
 }
@@ -564,12 +564,12 @@ impl DummyResult {
     ///
     /// Use this as a return value after hitting any errors and
     /// calling `span_err`.
-    pub fn any(span: Span, guar: ErrorGuaranteed) -> Box<dyn MacResult + 'static> {
+    pub fn any(span: Span, guar: ErrorGuaranteed) -> Box<DummyResult> {
         Box::new(DummyResult { guar: Some(guar), span })
     }
 
     /// Same as `any`, but must be a valid fragment, not error.
-    pub fn any_valid(span: Span) -> Box<dyn MacResult + 'static> {
+    pub fn any_valid(span: Span) -> Box<DummyResult> {
         Box::new(DummyResult { guar: None, span })
     }
 
