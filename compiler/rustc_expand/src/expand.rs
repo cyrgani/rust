@@ -723,7 +723,7 @@ impl<'a, 'b> MacroExpander<'a, 'b> {
         ExpandResult::Ready(match invoc.kind {
             InvocationKind::Bang { mac, span } => {
                 if let SyntaxExtensionKind::Bang(expander) = ext {
-                    match expander.expand(self.cx, span, mac.args.tokens.clone()) {
+                    match expander(self.cx, span, mac.args.tokens.clone()) {
                         Ok(tok_result) => {
                             let fragment =
                                 self.parse_ast_fragment(tok_result, fragment_kind, &mac.path, span);

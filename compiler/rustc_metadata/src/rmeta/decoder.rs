@@ -15,7 +15,7 @@ use rustc_data_structures::fx::FxIndexMap;
 use rustc_data_structures::owned_slice::OwnedSlice;
 use rustc_data_structures::sync::Lock;
 use rustc_data_structures::unhash::UnhashMap;
-use rustc_expand::base::{SyntaxExtension, SyntaxExtensionKind};
+use rustc_expand::base::{ExtCtxt, SyntaxExtension, SyntaxExtensionKind};
 use rustc_expand::proc_macro::{AttrProcMacro, BangProcMacro, DeriveProcMacro};
 use rustc_hir::Safety;
 use rustc_hir::def::Res;
@@ -1126,9 +1126,13 @@ impl CrateMetadata {
             (client, ProcMacroKind::Attr { name }) => {
                 (name, SyntaxExtensionKind::Attr(Arc::new(AttrProcMacro { client })), Vec::new())
             }
-            (client, ProcMacroKind::Bang { name }) => {
-                (name, SyntaxExtensionKind::Bang(Arc::new(BangProcMacro { client })), Vec::new())
-            }
+            (client, ProcMacroKind::Bang { name }) => (
+                name,
+                SyntaxExtensionKind::Bang(Arc::new(move |cx: &mut ExtCtxt<'_>, sp, ts| {
+                    BangProcMacro::expand(client, cx, sp, ts)
+                })),
+                Vec::new(),
+            ),
         };
 
         let sess = tcx.sess;

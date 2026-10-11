@@ -309,30 +309,6 @@ where
     }
 }
 
-pub trait BangProcMacro {
-    fn expand<'cx>(
-        &self,
-        ecx: &'cx mut ExtCtxt<'_>,
-        span: Span,
-        ts: TokenStream,
-    ) -> Result<TokenStream, ErrorGuaranteed>;
-}
-
-impl<F> BangProcMacro for F
-where
-    F: Fn(&mut ExtCtxt<'_>, Span, TokenStream) -> Result<TokenStream, ErrorGuaranteed>,
-{
-    fn expand<'cx>(
-        &self,
-        ecx: &'cx mut ExtCtxt<'_>,
-        span: Span,
-        ts: TokenStream,
-    ) -> Result<TokenStream, ErrorGuaranteed> {
-        // FIXME setup implicit context in TLS before calling self.
-        self(ecx, span, ts)
-    }
-}
-
 pub trait AttrProcMacro {
     fn expand<'cx>(
         &self,
@@ -685,7 +661,11 @@ pub enum SyntaxExtensionKind {
     /// A token-based function-like macro.
     Bang(
         /// An expander with signature TokenStream -> TokenStream.
-        Arc<dyn BangProcMacro + sync::DynSync + sync::DynSend>,
+        Arc<
+            dyn Fn(&mut ExtCtxt<'_>, Span, TokenStream) -> Result<TokenStream, ErrorGuaranteed>
+                + sync::DynSync
+                + sync::DynSend,
+        >,
     ),
 
     /// An AST-based function-like macro.
