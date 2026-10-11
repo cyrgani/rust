@@ -30,13 +30,11 @@ fn record_expand_proc_macro<'a>(
     })
 }
 
-pub struct BangProcMacro {
-    pub client: pm::bridge::client::Client,
-}
+pub struct BangProcMacro;
 
-impl base::BangProcMacro for BangProcMacro {
-    fn expand(
-        &self,
+impl BangProcMacro {
+    pub fn expand(
+        client: pm::bridge::client::Client,
         ecx: &mut ExtCtxt<'_>,
         span: Span,
         input: TokenStream,
@@ -46,7 +44,7 @@ impl base::BangProcMacro for BangProcMacro {
         let proc_macro_backtrace = ecx.ecfg.proc_macro_backtrace;
         let strategy = exec_strategy(ecx.sess);
         let server = proc_macro_server::Rustc::new(ecx);
-        self.client.run1(&strategy, server, input, proc_macro_backtrace).map_err(|e| {
+        client.run1(&strategy, server, input, proc_macro_backtrace).map_err(|e| {
             ecx.dcx().emit_err(diagnostics::ProcMacroPanicked {
                 span,
                 message: e

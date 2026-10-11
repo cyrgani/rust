@@ -34,8 +34,8 @@ use super::SequenceRepetition;
 use super::diagnostics::{FailedMacro, failed_to_match_macro};
 use super::macro_parser::{NamedMatches, NamedParseResult};
 use crate::base::{
-    AttrProcMacro, BangProcMacro, DummyResult, ExpandResult, ExtCtxt, MacResult,
-    MacroExpanderResult, SyntaxExtension, SyntaxExtensionKind, TTMacroExpander,
+    AttrProcMacro, DummyResult, ExpandResult, ExtCtxt, MacResult, MacroExpanderResult,
+    SyntaxExtension, SyntaxExtensionKind, TTMacroExpander,
 };
 use crate::diagnostics;
 use crate::expand::{AstFragment, AstFragmentKind, ensure_complete_parse, parse_ast_fragment};
@@ -341,19 +341,6 @@ impl AttrProcMacro for MacroRulesMacroExpander {
             &self.rules,
             self.on_unmatched_args.as_ref(),
         )
-    }
-}
-
-struct DummyBang(ErrorGuaranteed);
-
-impl BangProcMacro for DummyBang {
-    fn expand<'cx>(
-        &self,
-        _: &'cx mut ExtCtxt<'_>,
-        _: Span,
-        _: TokenStream,
-    ) -> Result<TokenStream, ErrorGuaranteed> {
-        Err(self.0)
     }
 }
 
@@ -789,7 +776,9 @@ pub fn compile_declarative_macro(
         let is_local = is_defined_in_current_crate(node_id);
         SyntaxExtension::new(sess, kind, span, Vec::new(), edition, ident.name, attrs, is_local)
     };
-    let dummy_syn_ext = |guar| mk_syn_ext(SyntaxExtensionKind::Bang(Arc::new(DummyBang(guar))));
+    let dummy_syn_ext = |guar| {
+        mk_syn_ext(SyntaxExtensionKind::Bang(Arc::new(move |_: &mut ExtCtxt<'_>, _, _| Err(guar))))
+    };
 
     let macro_rules = macro_def.macro_rules;
     let exp_sep = if macro_rules { exp!(Semi) } else { exp!(Comma) };

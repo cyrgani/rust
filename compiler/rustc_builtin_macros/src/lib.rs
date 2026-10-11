@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use rustc_expand::base::{MacroExpanderFn, ResolverExpand, SyntaxExtensionKind};
+use rustc_expand::base::{ExtCtxt, MacroExpanderFn, ResolverExpand, SyntaxExtensionKind};
 use rustc_expand::proc_macro::BangProcMacro;
 use rustc_span::sym;
 
@@ -147,7 +147,12 @@ pub fn register_builtin_macros(resolver: &mut dyn ResolverExpand) {
     }
 
     let client = rustc_proc_macro::bridge::client::Client::expand1(rustc_proc_macro::quote);
-    register(sym::quote, SyntaxExtensionKind::Bang(Arc::new(BangProcMacro { client })));
+    register(
+        sym::quote,
+        SyntaxExtensionKind::Bang(Arc::new(move |cx: &mut ExtCtxt<'_>, sp, ts| {
+            BangProcMacro::expand(client, cx, sp, ts)
+        })),
+    );
     let requires = SyntaxExtensionKind::Attr(Arc::new(contracts::ExpandRequires));
     register(sym::contracts_requires, requires);
     let ensures = SyntaxExtensionKind::Attr(Arc::new(contracts::ExpandEnsures));
