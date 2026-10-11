@@ -31,7 +31,8 @@ macro_rules! forward_to_parser_any_macro {
 
             let macro_ident = Ident::with_dummy_span(sym::cfg_select);
             for (cfg_entry, tts, span) in self.other_branches.into_iter_tts() {
-                let result = ExpandResult::from_tts(ecx, tts, site_span, span, macro_ident).$method_name();
+                let result =
+                    ExpandResult::from_tts(ecx, tts, site_span, span, macro_ident).$method_name();
                 $other(&mut *ecx, cfg_entry, span, result);
             }
 

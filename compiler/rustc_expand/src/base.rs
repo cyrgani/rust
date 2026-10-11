@@ -349,10 +349,7 @@ pub type MacroExpanderResult<'cx> = ExpandResult<Box<dyn MacResult + 'cx>, ()>;
 pub type MacroExpanderFn =
     for<'cx> fn(&'cx mut ExtCtxt<'_>, Span, TokenStream) -> MacroExpanderResult<'cx>;
 
-impl<F: 'static> TTMacroExpander for F
-where
-    F: for<'cx> Fn(&'cx mut ExtCtxt<'_>, Span, TokenStream) -> MacroExpanderResult<'cx>,
-{
+impl TTMacroExpander for MacroExpanderFn {
     fn expand<'cx, 'a: 'cx>(
         &'a self,
         ecx: &'cx mut ExtCtxt<'_>,
@@ -655,7 +652,7 @@ pub enum SyntaxExtensionKind {
     /// An AST-based function-like macro.
     AstBang(
         /// An expander with signature TokenStream -> AST.
-        Arc<dyn TTMacroExpander + sync::DynSync + sync::DynSend>,
+        MacroExpanderFn,
     ),
 
     /// A token-based attribute macro.
@@ -711,7 +708,7 @@ impl SyntaxExtensionKind {
     /// This includes a `MacroRules` with function-like rules.
     pub fn as_ast_bang(&self) -> Option<&(dyn TTMacroExpander + sync::DynSync + sync::DynSend)> {
         match self {
-            SyntaxExtensionKind::AstBang(exp) => Some(exp.as_ref()),
+            SyntaxExtensionKind::AstBang(exp) => Some(exp),
             SyntaxExtensionKind::MacroRules(exp) if exp.kinds().contains(MacroKinds::BANG) => {
                 Some(exp.as_ref())
             }
