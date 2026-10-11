@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use rustc_expand::base::{ExtCtxt, MacroExpanderFn, ResolverExpand, SyntaxExtensionKind};
+use rustc_expand::base::{ExtCtxt, ResolverExpand, SyntaxExtensionKind};
 use rustc_expand::proc_macro::BangProcMacro;
 use rustc_span::sym;
 
@@ -62,7 +62,7 @@ pub mod util;
 pub fn register_builtin_macros(resolver: &mut dyn ResolverExpand) {
     let mut register = |name, kind| resolver.register_builtin_macro(name, kind);
     macro register_bang($($name:ident: $f:expr,)*) {
-        $(register(sym::$name, SyntaxExtensionKind::AstBang(Arc::new($f as MacroExpanderFn)));)*
+        $(register(sym::$name, SyntaxExtensionKind::AstBang($f));)*
     }
     macro register_attr($($name:ident: $f:expr,)*) {
         $(register(sym::$name, SyntaxExtensionKind::AstAttr(Arc::new($f)));)*
