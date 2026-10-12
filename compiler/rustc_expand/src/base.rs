@@ -334,22 +334,6 @@ pub trait AttrProcMacro {
     }
 }
 
-impl<F> AttrProcMacro for F
-where
-    F: Fn(TokenStream, TokenStream) -> TokenStream,
-{
-    fn expand<'cx>(
-        &self,
-        _ecx: &'cx mut ExtCtxt<'_>,
-        _span: Span,
-        annotation: TokenStream,
-        annotated: TokenStream,
-    ) -> Result<TokenStream, ErrorGuaranteed> {
-        // FIXME setup implicit context in TLS before calling self.
-        Ok(self(annotation, annotated))
-    }
-}
-
 /// Represents a thing that maps token trees to Macro Results
 pub trait TTMacroExpander: Any {
     fn expand<'cx, 'a: 'cx>(
