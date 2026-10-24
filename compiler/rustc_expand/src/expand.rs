@@ -131,10 +131,6 @@ macro_rules! ast_fragments {
                 }
             })*
 
-            fn make_ast<T: InvocationCollectorNode>(self) -> T::OutputTy {
-                T::fragment_to_output(self)
-            }
-
             pub(crate) fn mut_visit_with(&mut self, vis: &mut impl MutVisitor) {
                 match self {
                     AstFragment::OptExpr(opt_expr) => {
@@ -2316,14 +2312,17 @@ impl<'a, 'b> InvocationCollector<'a, 'b> {
                     }
                     _ => {
                         Node::pre_flat_map_node_collect_attr(&self.cfg(), &attr);
-                        self.collect_attr((attr, pos, derives), node.to_annotatable(), Node::KIND)
-                            .make_ast::<Node>()
+                        Node::fragment_to_output(self.collect_attr(
+                            (attr, pos, derives),
+                            node.to_annotatable(),
+                            Node::KIND,
+                        ))
                     }
                 },
                 None if node.is_mac_call() => {
                     let (mac, attrs, add_semicolon) = node.take_mac_call();
                     self.check_attributes(&attrs, &mac);
-                    let mut res = self.collect_bang(mac, Node::KIND).make_ast::<Node>();
+                    let mut res = Node::fragment_to_output(self.collect_bang(mac, Node::KIND));
                     Node::post_flat_map_node_collect_bang(&mut res, add_semicolon);
                     res
                 }
@@ -2349,9 +2348,11 @@ impl<'a, 'b> InvocationCollector<'a, 'b> {
                             self.cx.dcx().emit_err(GlobDelegationTraitlessQpath { span });
                             return Default::default();
                         }
-                        return self
-                            .collect_glob_delegation(item, of_trait, Node::KIND)
-                            .make_ast::<Node>();
+                        return Node::fragment_to_output(self.collect_glob_delegation(
+                            item,
+                            of_trait,
+                            Node::KIND,
+                        ));
                     };
 
                     let single_delegations = build_single_delegations::<Node>(
@@ -2411,10 +2412,12 @@ impl<'a, 'b> InvocationCollector<'a, 'b> {
                     }
                     _ => {
                         let n = mem::replace(node, Node::dummy());
-                        *node = self
-                            .collect_attr((attr, pos, derives), n.to_annotatable(), Node::KIND)
-                            .make_ast::<Node>()
-                            .into()
+                        *node = Node::fragment_to_output(self.collect_attr(
+                            (attr, pos, derives),
+                            n.to_annotatable(),
+                            Node::KIND,
+                        ))
+                        .into()
                     }
                 },
                 None if node.is_mac_call() => {
@@ -2422,7 +2425,7 @@ impl<'a, 'b> InvocationCollector<'a, 'b> {
                     let (mac, attrs, _) = n.take_mac_call();
                     self.check_attributes(&attrs, &mac);
 
-                    *node = self.collect_bang(mac, Node::KIND).make_ast::<Node>().into()
+                    *node = Node::fragment_to_output(self.collect_bang(mac, Node::KIND)).into()
                 }
                 None if node.delegation().is_some() => unreachable!(),
                 None => {
