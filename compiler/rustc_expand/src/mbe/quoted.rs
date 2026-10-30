@@ -417,7 +417,8 @@ fn parse_kleene_op(
             Some(op) => Ok(Ok((op, token.span))),
             None => Ok(Err(*token)),
         },
-        tree => Err(tree.map_or(span, tokenstream::TokenTree::span)),
+        Some(tree) => Err(tree.span()),
+        None => Err(span),
     }
 }
 
