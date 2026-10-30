@@ -234,12 +234,10 @@ pub fn default_submod_path<'a>(
     // we need to look for submodules in
     // `./foo/<ident>.rs` and `./foo/<ident>/mod.rs` rather than
     // `./<ident>.rs` and `./<ident>/mod.rs`.
-    let relative_prefix_string;
     let relative_prefix = if let Some(ident) = relative {
-        relative_prefix_string = format!("{}{}", ident.name, path::MAIN_SEPARATOR);
-        &relative_prefix_string
+        format!("{}{}", ident.name, path::MAIN_SEPARATOR)
     } else {
-        ""
+        String::new()
     };
 
     let default_path_str = format!("{}{}.rs", relative_prefix, ident.name);
@@ -268,12 +266,10 @@ impl ModError<'_> {
     fn report(self, sess: &Session, span: Span) -> ErrorGuaranteed {
         match self {
             ModError::CircularInclusion(file_paths) => {
-                let path_to_string = |path: &PathBuf| path.display().to_string();
-
                 let paths = file_paths
                     .iter()
-                    .map(path_to_string)
-                    .chain(once(path_to_string(&file_paths[0])))
+                    .chain(once(&file_paths[0]))
+                    .map(|path| path.display().to_string())
                     .collect::<Vec<_>>();
 
                 let modules = paths.join(" -> ");
