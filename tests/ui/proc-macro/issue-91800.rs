@@ -10,6 +10,7 @@ extern crate issue_91800_macro;
 #[attribute_macro]
 //~^ ERROR macros that expand to items must be delimited with braces or followed by a semicolon
 //~| ERROR
+//~| WARN attribute macro after derive macro
 struct MyStruct;
 
 fn_macro! {}

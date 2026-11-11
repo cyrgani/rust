@@ -5,6 +5,7 @@
 //@ check-pass
 //@ proc-macro: rewrite-fieldless-type-kind.rs
 
+#![expect(attr_macro_after_derive)]
 extern crate rewrite_fieldless_type_kind;
 use rewrite_fieldless_type_kind::*;
 
