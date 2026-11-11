@@ -27,6 +27,7 @@ pub mod hardwired {
             AMBIGUOUS_PANIC_IMPORTS,
             ARITHMETIC_OVERFLOW,
             ASM_SUB_REGISTER,
+            ATTR_MACRO_AFTER_DERIVE,
             BAD_ASM_STYLE,
             BARE_TRAIT_OBJECTS,
             BINDINGS_WITH_VARIANT_NAME,
@@ -6053,4 +6054,28 @@ declare_lint! {
         reason: fcw!(FutureReleaseError #164032),
         report_in_deps: true,
     };
+}
+
+declare_lint! {
+    /// The `attr_macro_after_derive` lint detects attribute macros placed after
+    /// `derive` macro invocations.
+    ///
+    /// ### Example
+    ///
+    /// ```rust
+    /// #[derive(Debug)]
+    /// #[some_crate::add_field]
+    /// struct X { a: u8 }
+    /// ```
+    ///
+    /// {{produces}}
+    ///
+    /// ### Explanation
+    ///
+    /// The derive macro will be expanded before the attribute macro, so it sees
+    /// a type that may not exist in the resulting code in this way.
+    /// This can cause the derive macro to emit unsound or incorrect code.
+    pub ATTR_MACRO_AFTER_DERIVE,
+    Warn,
+    "detects attribute macros after derives"
 }

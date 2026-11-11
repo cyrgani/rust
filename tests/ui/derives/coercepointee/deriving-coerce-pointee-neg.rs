@@ -136,6 +136,7 @@ struct GlobalCoreSized<'a, #[pointee] T: ?::core::marker::Sized> {
 
 #[derive(CoercePointee)]
 #[malicious_macro::norepr]
+//~^ WARN attribute macro after derive macro
 #[repr(transparent)]
 struct TryToWipeRepr<'a, #[pointee] T: ?Sized> {
     //~^ ERROR: `derive(CoercePointee)` is only applicable to `struct` with `repr(transparent)` layout [E0802]

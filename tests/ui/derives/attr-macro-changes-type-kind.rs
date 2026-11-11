@@ -10,6 +10,7 @@ use struct_to_enum::*;
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[struct_to_enum::phantom]
+//~^ WARN attribute macro after derive macro
 struct Spooky<T>;
 
 fn main() {}

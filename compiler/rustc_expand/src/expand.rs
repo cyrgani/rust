@@ -23,7 +23,7 @@ use rustc_data_structures::flat_map_in_place::FlatMapInPlace;
 use rustc_errors::PResult;
 use rustc_feature::Features;
 use rustc_hir::def::MacroKinds;
-use rustc_lint_defs::builtin::{UNUSED_ATTRIBUTES, UNUSED_DOC_COMMENTS};
+use rustc_lint_defs::builtin::{ATTR_MACRO_AFTER_DERIVE, UNUSED_ATTRIBUTES, UNUSED_DOC_COMMENTS};
 use rustc_parse::parser::{
     AllowConstBlockItems, AttemptLocalParseRecovery, CommaRecoveryMode, ForceCollect, Parser,
     RecoverColon, RecoverComma, Recovery, token_descr,
@@ -485,6 +485,7 @@ impl<'a, 'b> MacroExpander<'a, 'b> {
         // The output fragments also go through expansion recursively until no invocations are left.
         // Unresolved macros produce dummy outputs as a recovery measure.
         invocations.reverse();
+        let mut any_derive_expanded = None;
         let mut expanded_fragments = Vec::new();
         let mut expanded_fragments_len = 0;
         let mut undetermined_invocations = Vec::new();
@@ -534,6 +535,31 @@ impl<'a, 'b> MacroExpander<'a, 'b> {
             let depth = depth - orig_expansion_data.depth;
             self.cx.current_expansion = invoc.expansion_data.clone();
             self.cx.force_mode = force;
+
+            match ext.kind {
+                SyntaxExtensionKind::Attr(..) | SyntaxExtensionKind::AstAttr(..)
+                    if let InvocationKind::Attr { attr, item, .. } = &invoc.kind
+                        && let Some((derive_span, derive_ann_span)) = any_derive_expanded
+                        && item.span() == derive_ann_span
+                        && !attr.has_any_name(&[sym::derive, sym::derive_const]) =>
+                {
+                    self.cx.sess.psess.buffer_lint(
+                        ATTR_MACRO_AFTER_DERIVE,
+                        invoc.span(),
+                        self.cx.current_expansion.lint_node_id,
+                        crate::diagnostics::AttrAfterDeriveMacro {
+                            derive_span,
+                            attr_span: invoc.span(),
+                        },
+                    );
+                }
+                SyntaxExtensionKind::Derive(..) | SyntaxExtensionKind::AstDerive(..)
+                    if let InvocationKind::Derive { item, .. } = &invoc.kind =>
+                {
+                    any_derive_expanded = Some((invoc.span(), item.span()));
+                }
+                _ => (),
+            }
 
             let fragment_kind = invoc.fragment_kind;
             match self.expand_invoc(invoc, &ext.kind) {
