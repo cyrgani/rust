@@ -15,7 +15,7 @@ pub(crate) fn expand_derive_const_param_ty(
         span,
         path: path_std!(cx, span, marker::ConstParamTy_),
         needs_copy_as_bound_if_packed: false,
-        additional_bounds: smallvec![path_std!(cx, span, cmp::Eq)],
+        additional_bounds: thin_vec![path_std!(cx, span, cmp::Eq)],
         supports_unions: false,
         methods: SmallVec::new(),
         is_const,

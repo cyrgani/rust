@@ -71,7 +71,6 @@ pub(crate) fn expand_derive_partial_ord(
         span,
         path: path_std!(cx, span, cmp::PartialOrd),
         needs_copy_as_bound_if_packed: true,
-        additional_bounds: smallvec![],
         supports_unions: false,
         methods: smallvec![partial_cmp_def],
         is_const,

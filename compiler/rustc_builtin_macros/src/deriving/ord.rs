@@ -19,7 +19,6 @@ pub(crate) fn expand_derive_ord(
         span,
         path: path_std!(cx, span, cmp::Ord),
         needs_copy_as_bound_if_packed: true,
-        additional_bounds: SmallVec::new(),
         supports_unions: false,
         methods: smallvec![MethodDef {
             name: sym::cmp,

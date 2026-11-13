@@ -35,7 +35,7 @@ pub(crate) fn expand_derive_clone(
         | ItemKind::Enum(_, Generics { params, .. }, _) => {
             let container_id = cx.current_expansion.id.expn_data().parent.expect_local();
             let has_derive_copy = cx.resolver.has_derive_copy(container_id);
-            bounds = smallvec![];
+            bounds = thin_vec![];
             if has_derive_copy
                 && !params
                     .iter()
@@ -55,7 +55,7 @@ pub(crate) fn expand_derive_clone(
             }
         }
         ItemKind::Union(..) => {
-            bounds = smallvec![path_std!(cx, span, marker::Copy)];
+            bounds = thin_vec![path_std!(cx, span, marker::Copy)];
             is_simple = true;
             body = MethodBody::Directly(clone_simple_body(cx, span, item, true));
         }
