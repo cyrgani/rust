@@ -76,7 +76,7 @@ pub(crate) fn expand_derive_from(
         supports_unions: false,
         methods: smallvec![MethodDef {
             name: sym::from,
-            generics: cx.empty_generics(span),
+            generics: Default::default(),
             args: thin_vec![cx.param(span, sym::value, from_type)],
             ret_ty: cx.ty_self(span),
             attributes: thin_vec![cx.generated_attr(span, ast::GeneratedAttr::Inline)],

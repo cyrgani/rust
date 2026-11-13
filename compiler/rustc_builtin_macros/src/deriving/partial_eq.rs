@@ -37,7 +37,7 @@ pub(crate) fn expand_derive_partial_eq(
     // faster.
     let methods = smallvec![MethodDef {
         name: sym::eq,
-        generics: cx.empty_generics(span),
+        generics: Default::default(),
         args: thin_vec![cx.param_self_ref(span), cx.param(span, sym::other, cx.ty_self_ref(span))],
         ret_ty: cx.ty_name(span, sym::bool),
         attributes: thin_vec![cx.generated_attr(span, ast::GeneratedAttr::Inline)],
