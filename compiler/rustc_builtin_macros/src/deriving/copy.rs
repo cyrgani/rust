@@ -15,7 +15,6 @@ pub(crate) fn expand_derive_copy(
         span,
         path: path_std!(cx, span, marker::Copy),
         needs_copy_as_bound_if_packed: false,
-        additional_bounds: SmallVec::new(),
         supports_unions: true,
         methods: SmallVec::new(),
         is_const,

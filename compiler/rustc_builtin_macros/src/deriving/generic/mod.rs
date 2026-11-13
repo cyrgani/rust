@@ -8,7 +8,7 @@ use rustc_attr_parsing::AttributeParser;
 use rustc_expand::base::ExtCtxt;
 use rustc_span::{Ident, Span, Symbol, kw, sym};
 pub(crate) use smallvec::{SmallVec, smallvec};
-use thin_vec::{ThinVec, thin_vec};
+pub(crate) use thin_vec::{ThinVec, thin_vec};
 
 use crate::util::generic_param_to_arg;
 use crate::{deriving, diagnostics};
@@ -28,7 +28,7 @@ pub(crate) struct TraitDef<'a> {
 
     /// Additional bounds required of any type parameters of the type,
     /// other than the current trait
-    pub additional_bounds: SmallVec<[ast::Path; 1]>,
+    pub additional_bounds: ThinVec<ast::Path> = ThinVec::new(),
 
     /// Can this trait be derived for unions?
     pub supports_unions: bool,

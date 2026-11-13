@@ -23,7 +23,7 @@ pub(crate) fn expand_derive_partial_eq(
         // The `StructuralPartialEq` impl must have the *same* bounds as the `PartialEq` impl,
         // or it will apply in situations where it should not, such as in the bug
         // <https://github.com/rust-lang/rust/issues/147714>.
-        additional_bounds: smallvec![path_std!(cx, span, cmp::PartialEq)],
+        additional_bounds: thin_vec![path_std!(cx, span, cmp::PartialEq)],
         // We really don't support unions, but that's already checked by the impl generated below;
         // a second check here would lead to redundant error messages.
         supports_unions: true,
@@ -52,7 +52,6 @@ pub(crate) fn expand_derive_partial_eq(
         span,
         path: path_std!(cx, span, cmp::PartialEq),
         needs_copy_as_bound_if_packed: true,
-        additional_bounds: SmallVec::new(),
         supports_unions: false,
         methods,
         is_const,

@@ -72,7 +72,6 @@ pub(crate) fn expand_derive_from(
         path,
         skip_path_as_bound: true,
         needs_copy_as_bound_if_packed: false,
-        additional_bounds: SmallVec::new(),
         supports_unions: false,
         methods: smallvec![MethodDef {
             name: sym::from,

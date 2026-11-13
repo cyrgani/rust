@@ -20,7 +20,6 @@ pub(crate) fn expand_derive_eq(
         span,
         path: path_std!(cx, span, cmp::Eq),
         needs_copy_as_bound_if_packed: true,
-        additional_bounds: SmallVec::new(),
         supports_unions: true,
         methods: smallvec![MethodDef {
             name: sym::assert_fields_are_eq,

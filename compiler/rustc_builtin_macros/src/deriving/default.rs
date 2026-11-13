@@ -24,7 +24,6 @@ pub(crate) fn expand_derive_default(
         path: cx.std_path(span, &[kw::Default, sym::Default]),
         skip_path_as_bound: has_a_default_variant(item),
         needs_copy_as_bound_if_packed: false,
-        additional_bounds: SmallVec::new(),
         supports_unions: false,
         methods: smallvec![MethodDef {
             name: kw::Default,
