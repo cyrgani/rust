@@ -24,7 +24,7 @@ pub(crate) fn expand_derive_eq(
         supports_unions: true,
         methods: smallvec![MethodDef {
             name: sym::assert_fields_are_eq,
-            generics: cx.empty_generics(span),
+            generics: Default::default(),
             args: thin_vec![cx.param_self_ref(span)],
             ret_ty: cx.ty_unit(span),
             attributes: thin_vec![

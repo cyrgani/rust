@@ -493,7 +493,7 @@ impl<'a> TraitDef<'a> {
 
 impl<'a> MethodDef<'a> {
     fn create_method(
-        self,
+        mut self,
         cx: &ExtCtxt<'_>,
         span: Span,
         body: BlockOrExpr,
@@ -502,6 +502,9 @@ impl<'a> MethodDef<'a> {
         if body.0.is_empty() && body.1.is_none() && self.name == sym::assert_fields_are_eq {
             return None;
         }
+
+        self.generics.span = span;
+        self.generics.where_clause.span = span;
 
         let ret_type = if self.ret_ty.kind.is_unit() {
             ast::FnRetTy::Default(span)

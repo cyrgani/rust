@@ -23,7 +23,7 @@ pub(crate) fn expand_derive_ord(
         supports_unions: false,
         methods: smallvec![MethodDef {
             name: sym::cmp,
-            generics: cx.empty_generics(span),
+            generics: Default::default(),
             args: thin_vec![
                 cx.param_self_ref(span),
                 cx.param(span, sym::other, cx.ty_self_ref(span))

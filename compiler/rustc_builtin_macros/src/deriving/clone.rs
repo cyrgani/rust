@@ -91,7 +91,7 @@ pub(crate) fn expand_derive_clone(
         supports_unions: true,
         methods: smallvec![MethodDef {
             name: sym::clone,
-            generics: cx.empty_generics(span),
+            generics: Default::default(),
             args: thin_vec![cx.param_self_ref(span)],
             ret_ty: cx.ty_self(span),
             attributes: thin_vec![

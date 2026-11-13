@@ -32,7 +32,7 @@ pub(crate) fn expand_derive_debug(
         supports_unions: false,
         methods: smallvec![MethodDef {
             name: sym::fmt,
-            generics: cx.empty_generics(span),
+            generics: Default::default(),
             args: thin_vec![cx.param_self_ref(span), cx.param(span, sym::f, fmtr)],
             ret_ty: cx.ty_path(path_std!(cx, span, fmt::Result)),
             attributes: thin_vec![
