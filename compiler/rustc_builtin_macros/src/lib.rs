@@ -22,6 +22,7 @@ use rustc_span::sym;
 use crate::deriving::*;
 
 mod alloc_error_handler;
+mod asm;
 mod assert;
 mod autodiff;
 mod cfg;
@@ -31,6 +32,7 @@ mod cfg_select;
 mod compile_error;
 mod concat;
 mod concat_bytes;
+mod contracts;
 mod define_opaque;
 mod derive;
 mod deriving;
@@ -51,13 +53,11 @@ mod test;
 mod test_binder_constraints;
 mod trace_macros;
 
-pub mod asm;
 pub mod cmdline_attrs;
-pub mod contracts;
 pub mod proc_macro_harness;
 pub mod standard_library_imports;
 pub mod test_harness;
-pub mod util;
+mod util;
 
 pub fn register_builtin_macros(resolver: &mut dyn ResolverExpand) {
     let mut register = |name, kind| resolver.register_builtin_macro(name, kind);
