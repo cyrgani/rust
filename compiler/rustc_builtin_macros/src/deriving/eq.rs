@@ -43,7 +43,10 @@ pub(crate) fn expand_derive_eq(
 
 fn assert_fields_eq_body(cx: &ExtCtxt<'_>, item: &ast::Item) -> BlockOrExpr {
     let mut stmts = ThinVec::new();
-    let mut seen_type_names = FxHashSet::default();
+    // We can skip the assertions for all fields that are named in the generics,
+    // as we already have a `T: Eq` bound for each of them.
+    let mut seen_type_names =
+        FxHashSet::from_iter(item.opt_generics().unwrap().params.iter().map(|p| p.ident.name));
     let mut process_variant = |variant: &ast::VariantData| {
         for field in variant.fields() {
             // This basic redundancy checking only prevents duplication of
