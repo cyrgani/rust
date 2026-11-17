@@ -73,7 +73,7 @@ fn debug_body(
 
     let (ident, vdata, fields) = match substr {
         Struct(vdata, fields) => (type_ident, vdata, fields),
-        EnumMatching(v, fields) => (v.ident, &v.data, fields),
+        EnumMatching(variant_ident, vdata, fields) => (variant_ident, vdata, fields),
         _ => cx.dcx().span_bug(span, "unexpected substructure in `derive(Debug)`"),
     };
 

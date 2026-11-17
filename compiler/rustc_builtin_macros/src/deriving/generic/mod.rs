@@ -93,7 +93,7 @@ pub(crate) enum Substructure<'a> {
     /// Matching variants of the enum: ast::Variant, fields.
     /// Created when `Self` is an enum and all the arguments are the
     /// same variant of the enum.
-    EnumMatching(&'a ast::Variant, Vec<FieldInfo<'a>>),
+    EnumMatching(Ident, &'a ast::VariantData, Vec<FieldInfo<'a>>),
 
     /// The discriminant of an enum. The field is the expression to combine the
     /// discriminant expression with; it will be `None` if no match is necessary.
@@ -683,7 +683,7 @@ impl<'a> MethodDef<'a> {
             [variant] if all_fieldless => {
                 // If there is a single variant, we don't need an operation on
                 // the discriminant(s). Just use the most degenerate result.
-                return body_func(cx, span, EnumMatching(variant, Vec::new()));
+                return body_func(cx, span, EnumMatching(variant.ident, &variant.data, Vec::new()));
             }
             _ if all_fieldless && unify_fieldless_variants => {
                 // If the type is fieldless and the trait uses the discriminant and
@@ -777,7 +777,8 @@ impl<'a> MethodDef<'a> {
                 // Self arg, assuming all are instances of VariantK.
                 // Build up code associated with such a case.
                 let arm_expr =
-                    body_func(cx, span, EnumMatching(variant, fields)).into_expr(cx, span);
+                    body_func(cx, span, EnumMatching(variant.ident, &variant.data, fields))
+                        .into_expr(cx, span);
 
                 cx.arm(span, single_pat, arm_expr)
             })
@@ -788,7 +789,10 @@ impl<'a> MethodDef<'a> {
         let default = match first_fieldless {
             Some(v) if unify_fieldless_variants => {
                 // We need a default case that handles all the fieldless variants.
-                Some(body_func(cx, span, EnumMatching(v, Vec::new())).into_expr(cx, span))
+                Some(
+                    body_func(cx, span, EnumMatching(v.ident, &v.data, Vec::new()))
+                        .into_expr(cx, span),
+                )
             }
             _ if variants.len() > 1 && *has_other_selflike_arg => {
                 // Because we know that all the arguments will match if we reach

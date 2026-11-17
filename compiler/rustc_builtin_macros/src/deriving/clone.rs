@@ -179,10 +179,10 @@ fn clone_body(
             all_fields = af;
             vdata = vdata_;
         }
-        EnumMatching(.., variant, af) => {
-            ctor_path = cx.path(trait_span, &[type_ident, variant.ident]);
+        EnumMatching(variant_ident, vdata_, af) => {
+            ctor_path = cx.path(trait_span, &[type_ident, variant_ident]);
             all_fields = af;
-            vdata = &variant.data;
+            vdata = vdata_;
         }
         _ => cx.dcx().span_bug(trait_span, "unexpected substructure in `derive(Clone)`"),
     }
