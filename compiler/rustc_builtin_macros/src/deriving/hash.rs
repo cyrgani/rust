@@ -63,7 +63,7 @@ fn hash_body(cx: &ExtCtxt<'_>, span: Span, substr: Substructure<'_>) -> BlockOrE
     };
 
     match substr {
-        Struct(_, fields) | EnumMatching(.., fields) => {
+        VariantCase(.., fields) => {
             let stmts =
                 fields.into_iter().map(|field| call_hash(field.span, field.self_expr)).collect();
             BlockOrExpr::new_stmts(stmts)

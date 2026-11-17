@@ -168,24 +168,16 @@ fn clone_body(
         )
     };
 
-    let ctor_path;
-    let all_fields;
-    let vdata;
+    let VariantCase(variant_ident, vdata, all_fields) = substr else {
+        cx.dcx().span_bug(trait_span, "unexpected substructure in `derive(Clone)`")
+    };
+
     // We need to use `type_ident` instead of `Self` here,
     // see https://github.com/rust-lang/rust/issues/163800
-    match substr {
-        Struct(vdata_, af) => {
-            ctor_path = cx.path(trait_span, &[type_ident]);
-            all_fields = af;
-            vdata = vdata_;
-        }
-        EnumMatching(variant_ident, vdata_, af) => {
-            ctor_path = cx.path(trait_span, &[type_ident, variant_ident]);
-            all_fields = af;
-            vdata = vdata_;
-        }
-        _ => cx.dcx().span_bug(trait_span, "unexpected substructure in `derive(Clone)`"),
-    }
+    let ctor_path = match variant_ident {
+        Some(variant_ident) => cx.path(trait_span, &[type_ident, variant_ident]),
+        None => cx.path(trait_span, &[type_ident]),
+    };
 
     let expr = match *vdata {
         VariantData::Struct { .. } => {

@@ -108,7 +108,7 @@ pub(crate) fn expand_derive_partial_eq(
 /// For enums, the discriminant is compared first, then the rest of the fields.
 fn partial_eq_body(cx: &ExtCtxt<'_>, span: Span, substructure: Substructure<'_>) -> BlockOrExpr {
     BlockOrExpr::new_expr(match substructure {
-        EnumMatching(.., fields) | Struct(.., fields) => {
+        VariantCase(.., fields) => {
             let combine = move |acc, field: &FieldInfo<'_>| {
                 let rhs = field
                     .other_selflike_expr

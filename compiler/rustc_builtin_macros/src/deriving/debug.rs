@@ -71,11 +71,10 @@ fn debug_body(
 ) -> BlockOrExpr {
     let fmt_detail = cx.sess.opts.unstable_opts.fmt_debug;
 
-    let (ident, vdata, fields) = match substr {
-        Struct(vdata, fields) => (type_ident, vdata, fields),
-        EnumMatching(variant_ident, vdata, fields) => (variant_ident, vdata, fields),
-        _ => cx.dcx().span_bug(span, "unexpected substructure in `derive(Debug)`"),
+    let VariantCase(variant_ident, vdata, fields) = substr else {
+        cx.dcx().span_bug(span, "unexpected substructure in `derive(Debug)`")
     };
+    let ident = variant_ident.unwrap_or(type_ident);
 
     let expr_name = || cx.expr_str(span, ident.name);
     let fmt = cx.expr_name(span, sym::f);
