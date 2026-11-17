@@ -87,13 +87,8 @@ pub(crate) struct FieldInfo<'a> {
 /// A helper that makes the code for several derive macros easier to write
 /// as they all have a similar base structure.
 pub(crate) enum Substructure<'a> {
-    /// A non-static method where `Self` is a struct, including tuple structs.
-    Struct(&'a ast::VariantData, Vec<FieldInfo<'a>>),
-
-    /// Matching variants of the enum: ast::Variant, fields.
-    /// Created when `Self` is an enum and all the arguments are the
-    /// same variant of the enum.
-    EnumMatching(Ident, &'a ast::VariantData, Vec<FieldInfo<'a>>),
+    /// The ident is `Some(variant.ident)` for an enum and `None` otherwise.
+    VariantCase(Option<Ident>, &'a ast::VariantData, Vec<FieldInfo<'a>>),
 
     /// The discriminant of an enum. The field is the expression to combine the
     /// discriminant expression with; it will be `None` if no match is necessary.
@@ -617,7 +612,7 @@ impl<'a> MethodDef<'a> {
             })
             .collect();
 
-        body_func(cx, span, Struct(struct_def, selflike_fields))
+        body_func(cx, span, VariantCase(None, struct_def, selflike_fields))
     }
 
     /// ```
@@ -684,7 +679,11 @@ impl<'a> MethodDef<'a> {
             [variant] if all_fieldless => {
                 // If there is a single variant, we don't need an operation on
                 // the discriminant(s). Just use the most degenerate result.
-                return body_func(cx, span, EnumMatching(variant.ident, &variant.data, Vec::new()));
+                return body_func(
+                    cx,
+                    span,
+                    VariantCase(Some(variant.ident), &variant.data, Vec::new()),
+                );
             }
             _ if all_fieldless && unify_fieldless_variants => {
                 // If the type is fieldless and the trait uses the discriminant and
@@ -778,7 +777,7 @@ impl<'a> MethodDef<'a> {
                 // Self arg, assuming all are instances of VariantK.
                 // Build up code associated with such a case.
                 let arm_expr =
-                    body_func(cx, span, EnumMatching(variant.ident, &variant.data, fields))
+                    body_func(cx, span, VariantCase(Some(variant.ident), &variant.data, fields))
                         .into_expr(cx, span);
 
                 cx.arm(span, single_pat, arm_expr)
@@ -791,7 +790,7 @@ impl<'a> MethodDef<'a> {
             Some(v) if unify_fieldless_variants => {
                 // We need a default case that handles all the fieldless variants.
                 Some(
-                    body_func(cx, span, EnumMatching(v.ident, &v.data, Vec::new()))
+                    body_func(cx, span, VariantCase(Some(v.ident), &v.data, Vec::new()))
                         .into_expr(cx, span),
                 )
             }
