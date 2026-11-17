@@ -44,7 +44,7 @@ impl MultiItemModifier for BuiltinDerive {
         item: Annotatable,
         is_derive_const: bool,
     ) -> ExpandResult<Vec<Annotatable>, Annotatable> {
-        // FIXME: Built-in derives often forget to give spans contexts,
+        // Built-in derives often forget to give spans contexts,
         // so we are doing it here in a centralized way.
         let span = ecx.with_def_site_ctxt(span);
         let mut items = Vec::new();
