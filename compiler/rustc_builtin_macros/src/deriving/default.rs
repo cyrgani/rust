@@ -61,12 +61,12 @@ fn default_struct_body(
     trait_span: Span,
     variant_data: &VariantData,
     type_ident: Ident,
-) -> BlockOrExpr {
+) -> Box<ast::Block> {
     // FIXME: This is currently needed to avoid a regression with attribute macros after
     // derives that incorrectly rely on the generated code using `Unit {}` instead of `Unit`.
     // See https://github.com/rust-lang/rust/issues/164078.
     if variant_data.fields().is_empty() {
-        return BlockOrExpr::new_expr(cx.expr_struct_ident(trait_span, type_ident, ThinVec::new()));
+        return cx.block_expr(cx.expr_struct_ident(trait_span, type_ident, ThinVec::new()));
     }
 
     let expr = match variant_data {
@@ -100,7 +100,7 @@ fn default_struct_body(
             cx.expr_struct_ident(trait_span, type_ident, default_fields)
         }
     };
-    BlockOrExpr::new_expr(expr)
+    cx.block_expr(expr)
 }
 
 fn default_enum_body(
@@ -108,7 +108,7 @@ fn default_enum_body(
     trait_span: Span,
     enum_def: &EnumDef,
     item_span: Span,
-) -> BlockOrExpr {
+) -> Box<ast::Block> {
     let expr = match try {
         let default_variant = extract_default_variant(cx, enum_def, trait_span, item_span)?;
         validate_default_attribute(cx, default_variant)?;
@@ -156,7 +156,7 @@ fn default_enum_body(
         }
         Err(guar) => DummyResult::raw_expr(trait_span, Some(guar)),
     };
-    BlockOrExpr::new_expr(expr)
+    cx.block_expr(expr)
 }
 
 fn extract_default_variant<'a>(

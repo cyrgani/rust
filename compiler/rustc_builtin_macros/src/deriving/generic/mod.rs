@@ -57,7 +57,7 @@ pub(crate) struct MethodDef {
 
     pub attributes: ast::AttrVec,
 
-    pub body: BlockOrExpr,
+    pub body: Box<ast::Block>,
 }
 
 /// How to handle fieldless enum variants.
@@ -149,10 +149,6 @@ impl BlockOrExpr {
             // Multiple statements and/or expressions.
             cx.expr_block(self.into_block(cx, span))
         }
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.0.is_empty() && self.1.is_none()
     }
 }
 
@@ -461,7 +457,6 @@ impl MethodDef {
 
         let method_ident = Ident::new(self.name, span);
         let fn_decl = cx.fn_decl(self.args, ret_type);
-        let body_block = self.body.into_block(cx, span);
 
         let trait_lo_sp = span.shrink_to_lo();
 
@@ -477,7 +472,7 @@ impl MethodDef {
                 sig,
                 method_ident,
                 self.generics,
-                Some(body_block),
+                Some(self.body),
             )),
             tokens: None,
         })
@@ -491,7 +486,7 @@ pub(crate) fn expand_via_substructure(
     func: SubstructureBodyFunc<'_>,
     strategy: FieldlessVariantsStrategy,
     has_other_selflike_arg: bool,
-) -> BlockOrExpr {
+) -> Box<ast::Block> {
     match &item.kind {
         ast::ItemKind::Struct(_, _, vdata) | ast::ItemKind::Union(_, _, vdata) => {
             let is_packed = matches!(
@@ -504,7 +499,7 @@ pub(crate) fn expand_via_substructure(
             expand_enum_method_body(cx, span, enum_def, func, strategy, has_other_selflike_arg)
         }
         _ => unreachable!(),
-    }
+    }.into_block(cx, span)
 }
 
 /// The normal case uses field access.

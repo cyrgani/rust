@@ -31,7 +31,7 @@ pub(crate) fn expand_derive_eq(
                 cx.generated_attr(span, ast::GeneratedAttr::DocHidden),
                 cx.generated_attr(span, ast::GeneratedAttr::CoverageOff),
             ],
-            body,
+            body: cx.block(span, body),
         }]
     };
 
@@ -47,7 +47,7 @@ pub(crate) fn expand_derive_eq(
     trait_def.expand(cx, item, push);
 }
 
-fn assert_fields_eq_body(cx: &ExtCtxt<'_>, item: &ast::Item) -> BlockOrExpr {
+fn assert_fields_eq_body(cx: &ExtCtxt<'_>, item: &ast::Item) -> ThinVec<ast::Stmt> {
     let mut stmts = ThinVec::new();
     // We can skip the assertions for all fields that are named in the generics,
     // as we already have a `T: Eq` bound for each of them.
@@ -73,5 +73,5 @@ fn assert_fields_eq_body(cx: &ExtCtxt<'_>, item: &ast::Item) -> BlockOrExpr {
         }
     }
 
-    BlockOrExpr::new_stmts(stmts)
+    stmts
 }

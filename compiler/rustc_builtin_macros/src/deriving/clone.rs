@@ -113,7 +113,7 @@ fn clone_simple_body(
     trait_span: Span,
     item: &ast::Item,
     is_union: bool,
-) -> BlockOrExpr {
+) -> Box<ast::Block> {
     let mut stmts = ThinVec::new();
 
     if is_union {
@@ -151,7 +151,8 @@ fn clone_simple_body(
             }
         }
     }
-    BlockOrExpr::new_mixed(stmts, Some(cx.expr_deref(trait_span, cx.expr_self(trait_span))))
+    stmts.push(cx.stmt_expr(cx.expr_deref(trait_span, cx.expr_self(trait_span))));
+    cx.block(trait_span, stmts)
 }
 
 fn clone_body(

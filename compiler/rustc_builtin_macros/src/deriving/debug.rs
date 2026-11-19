@@ -40,7 +40,7 @@ pub(crate) fn expand_derive_debug(
             ],
             body: match &item.kind {
                 _ if cx.sess.opts.unstable_opts.fmt_debug == FmtDebug::None => {
-                    BlockOrExpr::new_expr(cx.expr_ok(span, cx.expr_tuple(span, ThinVec::new())))
+                    cx.block_expr(cx.expr_ok(span, cx.expr_tuple(span, ThinVec::new())))
                 }
                 ast::ItemKind::Enum(_, _, def)
                     if def.variants.len() > 1
@@ -200,9 +200,9 @@ fn debug_fieldless_enum(
     span: Span,
     def: &EnumDef,
     type_ident: Ident,
-) -> BlockOrExpr {
+) -> Box<ast::Block> {
     if let Some(expr) = debug_fieldless_enum_concat_str(cx, span, def, type_ident) {
-        return BlockOrExpr::new_expr(expr);
+        return cx.block_expr(expr);
     }
     let fmt = cx.expr_name(span, sym::f);
     let arms = def
@@ -226,7 +226,7 @@ fn debug_fieldless_enum(
         .collect::<ThinVec<_>>();
     let name = cx.expr_match(span, cx.expr_self(span), arms);
     let fn_path_write_str = cx.std_path(span, &[sym::fmt, sym::Formatter, sym::write_str]);
-    BlockOrExpr::new_expr(cx.expr_call_global(span, fn_path_write_str, thin_vec![fmt, name]))
+    cx.block_expr(cx.expr_call_global(span, fn_path_write_str, thin_vec![fmt, name]))
 }
 
 /// Special case for large enums with no fields. Builds:

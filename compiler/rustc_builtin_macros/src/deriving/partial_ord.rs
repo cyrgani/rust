@@ -110,11 +110,11 @@ fn partial_cmp_simple_body(
     cx: &ExtCtxt<'_>,
     span: Span,
     other_expr: Box<ast::Expr>,
-) -> BlockOrExpr {
+) -> Box<ast::Block> {
     let ord_cmp_path = cx.std_path(span, &[sym::cmp, sym::Ord, sym::cmp]);
     let cmp_expr =
         cx.expr_call_global(span, ord_cmp_path, thin_vec![cx.expr_self(span), other_expr]);
-    BlockOrExpr::new_expr(cx.expr_some(span, cmp_expr))
+    cx.block_expr(cx.expr_some(span, cmp_expr))
 }
 
 fn partial_cmp_body(
