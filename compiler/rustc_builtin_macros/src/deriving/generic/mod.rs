@@ -160,10 +160,6 @@ impl BlockOrExpr {
         }
     }
 
-    fn take(&mut self) -> BlockOrExpr {
-        std::mem::replace(self, BlockOrExpr::new_stmts(ThinVec::new()))
-    }
-
     pub(crate) fn is_empty(&self) -> bool {
         self.0.is_empty() && self.1.is_none()
     }
@@ -251,30 +247,14 @@ impl<'a> TraitDef<'a> {
             Some(Attribute::Parsed(AttributeKind::Repr { reprs, .. })) if reprs.iter().any(|(x, _)| matches!(x, ReprPacked(..)))
         );
 
-        let methods;
         let (ident, generics) = match &item.kind {
             ast::ItemKind::Union(..) if !self.supports_unions => {
                 cx.dcx().emit_err(diagnostics::DeriveUnion { span });
                 return;
             }
-            ast::ItemKind::Struct(ident, generics, struct_def)
-            | ast::ItemKind::Union(ident, generics, struct_def) => {
-                methods = self
-                    .methods
-                    .into_iter()
-                    .map(|mut method_def| {
-                        let body = if let MethodBody::Directly(body) = &mut method_def.body {
-                            body.take()
-                        } else {
-                            method_def.expand_struct_method_body(cx, span, struct_def, is_packed)
-                        };
-
-                        method_def.create_method(cx, span, body)
-                    })
-                    .collect();
-                (ident, generics)
-            }
-            ast::ItemKind::Enum(ident, generics, enum_def) => {
+            ast::ItemKind::Struct(ident, generics, _)
+            | ast::ItemKind::Union(ident, generics, _) => (ident, generics),
+            ast::ItemKind::Enum(ident, generics, _) => {
                 // We can skip generating the impl here, because `repr(packed)`
                 // enums cause an error later on and to prevent ICEs like #133025.
                 // This can only cause further compilation errors
@@ -282,23 +262,17 @@ impl<'a> TraitDef<'a> {
                 if is_packed {
                     return;
                 }
-                methods = self
-                    .methods
-                    .into_iter()
-                    .map(|mut method_def| {
-                        let body = if let MethodBody::Directly(body) = &mut method_def.body {
-                            body.take()
-                        } else {
-                            method_def.expand_enum_method_body(cx, span, enum_def)
-                        };
-
-                        method_def.create_method(cx, span, body)
-                    })
-                    .collect();
                 (ident, generics)
             }
             _ => unreachable!(),
         };
+
+        let methods = self
+            .methods
+            .into_iter()
+            .map(|method_def| method_def.create_method(cx, span, item, is_packed))
+            .collect();
+
         let mut where_clause = ast::WhereClause::default();
         where_clause.span = generics.where_clause.span;
         let ctxt = self.span.ctxt();
@@ -491,8 +465,22 @@ impl<'a> MethodDef<'a> {
         mut self,
         cx: &ExtCtxt<'_>,
         span: Span,
-        body: BlockOrExpr,
+        item: &ast::Item,
+        is_packed: bool,
     ) -> Box<ast::AssocItem> {
+        let body = match self.body {
+            MethodBody::Directly(body) => body,
+            body @ MethodBody::SubstructureFunc { .. } => match &item.kind {
+                ast::ItemKind::Struct(_, _, vdata) | ast::ItemKind::Union(_, _, vdata) => {
+                    expand_struct_method_body(cx, span, vdata, is_packed, body)
+                }
+                ast::ItemKind::Enum(_, _, enum_def) => {
+                    expand_enum_method_body(cx, span, enum_def, body)
+                }
+                _ => unreachable!(),
+            },
+        };
+
         self.generics.span = span;
         self.generics.where_clause.span = span;
 
@@ -525,312 +513,309 @@ impl<'a> MethodDef<'a> {
             tokens: None,
         })
     }
+}
 
-    /// The normal case uses field access.
-    ///
-    /// ```
-    /// #[derive(PartialEq)]
-    /// # struct Dummy;
-    /// struct A { x: u8, y: u8 }
-    ///
-    /// // equivalent to:
-    /// impl PartialEq for A {
-    ///     fn eq(&self, other: &A) -> bool {
-    ///         self.x == other.x && self.y == other.y
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// But if the struct is `repr(packed)`, we can't use something like
-    /// `&self.x` because that might cause an unaligned ref. So for any trait
-    /// method that takes a reference, we use a local block to force a copy.
-    /// This requires that the field impl `Copy`.
-    ///
-    /// ```rust,ignore (example)
-    /// # struct A { x: u8, y: u8 }
-    /// impl PartialEq for A {
-    ///     fn eq(&self, other: &A) -> bool {
-    ///         // Desugars to `{ self.x }.eq(&{ other.y }) && ...`
-    ///         { self.x } == { other.y } && { self.y } == { other.y }
-    ///     }
-    /// }
-    /// impl Hash for A {
-    ///     fn hash<__H: ::core::hash::Hasher>(&self, state: &mut __H) -> () {
-    ///         ::core::hash::Hash::hash(&{ self.x }, state);
-    ///         ::core::hash::Hash::hash(&{ self.y }, state);
-    ///     }
-    /// }
-    /// ```
-    fn expand_struct_method_body<'b>(
-        &self,
-        cx: &ExtCtxt<'_>,
-        span: Span,
-        struct_def: &'b VariantData,
-        is_packed: bool,
-    ) -> BlockOrExpr {
-        let MethodBody::SubstructureFunc { body_func, has_other_selflike_arg, .. } = &self.body
-        else {
-            unreachable!()
-        };
-        let selflike_fields = struct_def
-            .fields()
-            .iter()
-            .enumerate()
-            .map(|(i, struct_field)| {
-                // For this field, get an expr for each selflike_arg. E.g. for
-                // `PartialEq::eq`, one for each of `&self` and `other`.
-                let field_span = struct_field.span.with_ctxt(span.ctxt());
-                let expr_for_selflike_arg = |selflike_arg| {
-                    // Note: we must use `struct_field.span` rather than `sp` in the
-                    // `unwrap_or_else` case otherwise the hygiene is wrong and we get
-                    // "field `0` of struct `Point` is private" errors on tuple
-                    // structs.
-                    let mut field_expr = cx.expr(
-                        field_span,
-                        ast::ExprKind::Field(
-                            selflike_arg,
-                            struct_field
-                                .ident
-                                .unwrap_or_else(|| Ident::new(sym::integer(i), struct_field.span)),
-                        ),
+/// The normal case uses field access.
+///
+/// ```
+/// #[derive(PartialEq)]
+/// # struct Dummy;
+/// struct A { x: u8, y: u8 }
+///
+/// // equivalent to:
+/// impl PartialEq for A {
+///     fn eq(&self, other: &A) -> bool {
+///         self.x == other.x && self.y == other.y
+///     }
+/// }
+/// ```
+///
+/// But if the struct is `repr(packed)`, we can't use something like
+/// `&self.x` because that might cause an unaligned ref. So for any trait
+/// method that takes a reference, we use a local block to force a copy.
+/// This requires that the field impl `Copy`.
+///
+/// ```rust,ignore (example)
+/// # struct A { x: u8, y: u8 }
+/// impl PartialEq for A {
+///     fn eq(&self, other: &A) -> bool {
+///         // Desugars to `{ self.x }.eq(&{ other.y }) && ...`
+///         { self.x } == { other.y } && { self.y } == { other.y }
+///     }
+/// }
+/// impl Hash for A {
+///     fn hash<__H: ::core::hash::Hasher>(&self, state: &mut __H) -> () {
+///         ::core::hash::Hash::hash(&{ self.x }, state);
+///         ::core::hash::Hash::hash(&{ self.y }, state);
+///     }
+/// }
+/// ```
+fn expand_struct_method_body<'b>(
+    cx: &ExtCtxt<'_>,
+    span: Span,
+    struct_def: &'b VariantData,
+    is_packed: bool,
+    body: MethodBody<'_>,
+) -> BlockOrExpr {
+    let MethodBody::SubstructureFunc { body_func, has_other_selflike_arg, .. } = body else {
+        unreachable!()
+    };
+    let selflike_fields = struct_def
+        .fields()
+        .iter()
+        .enumerate()
+        .map(|(i, struct_field)| {
+            // For this field, get an expr for each selflike_arg. E.g. for
+            // `PartialEq::eq`, one for each of `&self` and `other`.
+            let field_span = struct_field.span.with_ctxt(span.ctxt());
+            let expr_for_selflike_arg = |selflike_arg| {
+                // Note: we must use `struct_field.span` rather than `sp` in the
+                // `unwrap_or_else` case otherwise the hygiene is wrong and we get
+                // "field `0` of struct `Point` is private" errors on tuple
+                // structs.
+                let mut field_expr = cx.expr(
+                    field_span,
+                    ast::ExprKind::Field(
+                        selflike_arg,
+                        struct_field
+                            .ident
+                            .unwrap_or_else(|| Ident::new(sym::integer(i), struct_field.span)),
+                    ),
+                );
+                if is_packed {
+                    // Fields in packed structs are wrapped in a block, e.g. `&{self.0}`,
+                    // causing a copy instead of a (potentially misaligned) reference.
+                    field_expr = cx.expr_block(
+                        cx.block(struct_field.span, thin_vec![cx.stmt_expr(field_expr)]),
                     );
-                    if is_packed {
-                        // Fields in packed structs are wrapped in a block, e.g. `&{self.0}`,
-                        // causing a copy instead of a (potentially misaligned) reference.
-                        field_expr = cx.expr_block(
-                            cx.block(struct_field.span, thin_vec![cx.stmt_expr(field_expr)]),
-                        );
-                    }
-                    cx.expr_ref(field_span, field_expr)
-                };
+                }
+                cx.expr_ref(field_span, field_expr)
+            };
 
-                let self_expr = expr_for_selflike_arg(cx.expr_self(span));
-                let other_selflike_expr = has_other_selflike_arg
-                    .then(|| expr_for_selflike_arg(cx.expr_name(span, sym::other)));
-                FieldInfo { span: field_span, self_expr, other_selflike_expr, def: struct_field }
-            })
-            .collect();
+            let self_expr = expr_for_selflike_arg(cx.expr_self(span));
+            let other_selflike_expr = has_other_selflike_arg
+                .then(|| expr_for_selflike_arg(cx.expr_name(span, sym::other)));
+            FieldInfo { span: field_span, self_expr, other_selflike_expr, def: struct_field }
+        })
+        .collect();
 
-        body_func(cx, span, VariantCase(None, struct_def, selflike_fields))
+    body_func(cx, span, VariantCase(None, struct_def, selflike_fields))
+}
+
+/// ```
+/// #[derive(PartialEq)]
+/// # struct Dummy;
+/// enum A {
+///     A1,
+///     A2(i32)
+/// }
+/// ```
+///
+/// is equivalent to:
+///
+/// ```
+/// #![feature(core_intrinsics)]
+/// enum A {
+///     A1,
+///     A2(i32)
+/// }
+/// impl ::core::cmp::PartialEq for A {
+///     #[inline]
+///     fn eq(&self, other: &A) -> bool {
+///         ::core::intrinsics::discriminant_value(self) == ::core::intrinsics::discriminant_value(other)
+///             && match (self, other) {
+///                 (A::A2(__self_0), A::A2(__arg1_0)) => *__self_0 == *__arg1_0,
+///                 _ => true,
+///             }
+///     }
+/// }
+/// ```
+///
+/// Creates a discriminant check combined with a match for a tuple of all
+/// `selflike_args`, with an arm for each variant with fields, possibly an
+/// arm for each fieldless variant (if `unify_fieldless_variants` is not
+/// `Unify`), and possibly a default arm.
+fn expand_enum_method_body<'b>(
+    cx: &ExtCtxt<'_>,
+    span: Span,
+    enum_def: &'b EnumDef,
+    body: MethodBody<'_>,
+) -> BlockOrExpr {
+    let variants = &enum_def.variants;
+
+    // There are some special cases involving fieldless enums where no
+    // match is necessary.
+    let all_fieldless = variants.iter().all(|v| v.data.fields().is_empty());
+    let MethodBody::SubstructureFunc { body_func, strategy, has_other_selflike_arg } = body else {
+        unreachable!()
+    };
+    // Traits that unify fieldless variants always use the discriminant(s).
+    let unify_fieldless_variants = strategy == FieldlessVariantsStrategy::Unify;
+
+    match variants.as_slice() {
+        [] => {
+            // For zero-variant enum, this function body is unreachable. Generate
+            // `match *self {}`. This produces machine code identical to `unsafe {
+            // core::intrinsics::unreachable() }` while being safe and stable.
+            let match_arg = cx.expr_deref(span, cx.expr_self(span));
+            let expr = cx.expr_match(span, match_arg, ThinVec::new());
+            return BlockOrExpr::new_expr(expr);
+        }
+        [variant] if all_fieldless => {
+            // If there is a single variant, we don't need an operation on
+            // the discriminant(s). Just use the most degenerate result.
+            return body_func(
+                cx,
+                span,
+                VariantCase(Some(variant.ident), &variant.data, Vec::new()),
+            );
+        }
+        _ if all_fieldless && unify_fieldless_variants => {
+            // If the type is fieldless and the trait uses the discriminant and
+            // there are multiple variants, we need just an operation on
+            // the discriminant(s).
+            return body_func(cx, span, EnumDiscr(None));
+        }
+        _ => (),
     }
 
-    /// ```
-    /// #[derive(PartialEq)]
-    /// # struct Dummy;
-    /// enum A {
-    ///     A1,
-    ///     A2(i32)
-    /// }
-    /// ```
-    ///
-    /// is equivalent to:
-    ///
-    /// ```
-    /// #![feature(core_intrinsics)]
-    /// enum A {
-    ///     A1,
-    ///     A2(i32)
-    /// }
-    /// impl ::core::cmp::PartialEq for A {
-    ///     #[inline]
-    ///     fn eq(&self, other: &A) -> bool {
-    ///         ::core::intrinsics::discriminant_value(self) == ::core::intrinsics::discriminant_value(other)
-    ///             && match (self, other) {
-    ///                 (A::A2(__self_0), A::A2(__arg1_0)) => *__self_0 == *__arg1_0,
-    ///                 _ => true,
-    ///             }
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// Creates a discriminant check combined with a match for a tuple of all
-    /// `selflike_args`, with an arm for each variant with fields, possibly an
-    /// arm for each fieldless variant (if `unify_fieldless_variants` is not
-    /// `Unify`), and possibly a default arm.
-    fn expand_enum_method_body<'b>(
-        &self,
-        cx: &ExtCtxt<'_>,
-        span: Span,
-        enum_def: &'b EnumDef,
-    ) -> BlockOrExpr {
-        let variants = &enum_def.variants;
+    // These arms are of the form:
+    // (Variant1, Variant1) => Body1
+    // (Variant2, Variant2) => Body2
+    // ...
+    // where each tuple has length 2 if `has_other_selflike_arg` and 1 otherwise
+    let mut match_arms: ThinVec<ast::Arm> = variants
+        .iter()
+        .filter(|&v| !(unify_fieldless_variants && v.data.fields().is_empty()))
+        .map(|variant| {
+            // A single arm has form (&VariantK, &VariantK) => BodyK
+            // (see "Final wrinkle" note below for why.)
+            let variant_span = variant.span.with_ctxt(span.ctxt());
+            let pat_for_field = |prefix| {
+                let pieces_iter =
+                    variant.data.fields().iter().enumerate().map(|(i, struct_field)| {
+                        let name = Symbol::intern(&format!("{prefix}_{i}"));
+                        (
+                            struct_field.ident,
+                            cx.pat_name(struct_field.span.with_ctxt(span.ctxt()), name),
+                        )
+                    });
 
-        // There are some special cases involving fieldless enums where no
-        // match is necessary.
-        let all_fieldless = variants.iter().all(|v| v.data.fields().is_empty());
-        let MethodBody::SubstructureFunc { body_func, strategy, has_other_selflike_arg } =
-            &self.body
-        else {
-            unreachable!()
-        };
-        // Traits that unify fieldless variants always use the discriminant(s).
-        let unify_fieldless_variants = *strategy == FieldlessVariantsStrategy::Unify;
+                let struct_path =
+                    cx.path(variant_span, &[Ident::new(kw::SelfUpper, span), variant.ident]);
 
-        match variants.as_slice() {
-            [] => {
-                // For zero-variant enum, this function body is unreachable. Generate
-                // `match *self {}`. This produces machine code identical to `unsafe {
-                // core::intrinsics::unreachable() }` while being safe and stable.
-                let match_arg = cx.expr_deref(span, cx.expr_self(span));
-                let expr = cx.expr_match(span, match_arg, ThinVec::new());
-                return BlockOrExpr::new_expr(expr);
-            }
-            [variant] if all_fieldless => {
-                // If there is a single variant, we don't need an operation on
-                // the discriminant(s). Just use the most degenerate result.
-                return body_func(
-                    cx,
-                    span,
-                    VariantCase(Some(variant.ident), &variant.data, Vec::new()),
-                );
-            }
-            _ if all_fieldless && unify_fieldless_variants => {
-                // If the type is fieldless and the trait uses the discriminant and
-                // there are multiple variants, we need just an operation on
-                // the discriminant(s).
-                return body_func(cx, span, EnumDiscr(None));
-            }
-            _ => (),
-        }
-
-        // These arms are of the form:
-        // (Variant1, Variant1) => Body1
-        // (Variant2, Variant2) => Body2
-        // ...
-        // where each tuple has length 2 if `has_other_selflike_arg` and 1 otherwise
-        let mut match_arms: ThinVec<ast::Arm> = variants
-            .iter()
-            .filter(|&v| !(unify_fieldless_variants && v.data.fields().is_empty()))
-            .map(|variant| {
-                // A single arm has form (&VariantK, &VariantK) => BodyK
-                // (see "Final wrinkle" note below for why.)
-                let variant_span = variant.span.with_ctxt(span.ctxt());
-                let pat_for_field = |prefix| {
-                    let pieces_iter =
-                        variant.data.fields().iter().enumerate().map(|(i, struct_field)| {
-                            let name = Symbol::intern(&format!("{prefix}_{i}"));
-                            (
-                                struct_field.ident,
-                                cx.pat_name(struct_field.span.with_ctxt(span.ctxt()), name),
-                            )
-                        });
-
-                    let struct_path =
-                        cx.path(variant_span, &[Ident::new(kw::SelfUpper, span), variant.ident]);
-
-                    match variant.data {
-                        VariantData::Struct { .. } => {
-                            let field_pats = pieces_iter
-                                .map(|(ident, pat)| ast::PatField {
-                                    ident: ident
-                                        .expect("a braced struct with unnamed fields in `derive`"),
-                                    is_shorthand: false,
-                                    attrs: ast::AttrVec::new(),
-                                    id: ast::DUMMY_NODE_ID,
-                                    span: pat.span,
-                                    pat: Box::new(pat),
-                                    is_placeholder: false,
-                                })
-                                .collect();
-                            cx.pat_struct(span, struct_path, field_pats)
-                        }
-                        VariantData::Tuple(..) => {
-                            let subpats = pieces_iter.map(|(_, subpat)| subpat).collect();
-                            cx.pat_tuple_struct(span, struct_path, subpats)
-                        }
-                        VariantData::Unit(..) => cx.pat_path(span, struct_path),
+                match variant.data {
+                    VariantData::Struct { .. } => {
+                        let field_pats = pieces_iter
+                            .map(|(ident, pat)| ast::PatField {
+                                ident: ident
+                                    .expect("a braced struct with unnamed fields in `derive`"),
+                                is_shorthand: false,
+                                attrs: ast::AttrVec::new(),
+                                id: ast::DUMMY_NODE_ID,
+                                span: pat.span,
+                                pat: Box::new(pat),
+                                is_placeholder: false,
+                            })
+                            .collect();
+                        cx.pat_struct(span, struct_path, field_pats)
                     }
-                };
+                    VariantData::Tuple(..) => {
+                        let subpats = pieces_iter.map(|(_, subpat)| subpat).collect();
+                        cx.pat_tuple_struct(span, struct_path, subpats)
+                    }
+                    VariantData::Unit(..) => cx.pat_path(span, struct_path),
+                }
+            };
 
-                // `(VariantK, VariantK)` or just `VariantK`.
-                let single_pat = if *has_other_selflike_arg {
-                    cx.pat_tuple(span, thin_vec![pat_for_field("__self"), pat_for_field("__arg1"),])
-                } else {
-                    pat_for_field("__self")
-                };
+            // `(VariantK, VariantK)` or just `VariantK`.
+            let single_pat = if has_other_selflike_arg {
+                cx.pat_tuple(span, thin_vec![pat_for_field("__self"), pat_for_field("__arg1"),])
+            } else {
+                pat_for_field("__self")
+            };
 
-                let fields = variant
-                    .data
-                    .fields()
-                    .iter()
-                    .enumerate()
-                    .map(|(i, struct_field)| {
-                        // For this field, get an expr for each selflike_arg. E.g. for
-                        // `PartialEq::eq`, one for each of `&self` and `other`.
-                        let span = struct_field.span.with_ctxt(span.ctxt());
-                        let expr_for_field =
-                            |prefix| cx.expr_name(span, Symbol::intern(&format!("{prefix}_{i}")));
+            let fields = variant
+                .data
+                .fields()
+                .iter()
+                .enumerate()
+                .map(|(i, struct_field)| {
+                    // For this field, get an expr for each selflike_arg. E.g. for
+                    // `PartialEq::eq`, one for each of `&self` and `other`.
+                    let span = struct_field.span.with_ctxt(span.ctxt());
+                    let expr_for_field =
+                        |prefix| cx.expr_name(span, Symbol::intern(&format!("{prefix}_{i}")));
 
-                        let self_expr = expr_for_field("__self");
-                        let other_selflike_expr =
-                            has_other_selflike_arg.then(|| expr_for_field("__arg1"));
-                        FieldInfo { span, self_expr, other_selflike_expr, def: struct_field }
-                    })
-                    .collect();
-                // For the BodyK, we need to delegate to our caller,
-                // passing it an EnumMatching to indicate which case
-                // we are in.
-                //
-                // Now, for some given VariantK, we have built up
-                // expressions for referencing every field of every
-                // Self arg, assuming all are instances of VariantK.
-                // Build up code associated with such a case.
-                let arm_expr =
-                    body_func(cx, span, VariantCase(Some(variant.ident), &variant.data, fields))
-                        .into_expr(cx, span);
+                    let self_expr = expr_for_field("__self");
+                    let other_selflike_expr =
+                        has_other_selflike_arg.then(|| expr_for_field("__arg1"));
+                    FieldInfo { span, self_expr, other_selflike_expr, def: struct_field }
+                })
+                .collect();
+            // For the BodyK, we need to delegate to our caller,
+            // passing it an EnumMatching to indicate which case
+            // we are in.
+            //
+            // Now, for some given VariantK, we have built up
+            // expressions for referencing every field of every
+            // Self arg, assuming all are instances of VariantK.
+            // Build up code associated with such a case.
+            let arm_expr =
+                body_func(cx, span, VariantCase(Some(variant.ident), &variant.data, fields))
+                    .into_expr(cx, span);
 
-                cx.arm(span, single_pat, arm_expr)
-            })
-            .collect();
+            cx.arm(span, single_pat, arm_expr)
+        })
+        .collect();
 
-        // Add a default arm to the match, if necessary.
-        let first_fieldless = variants.iter().find(|v| v.data.fields().is_empty());
-        let default = match first_fieldless {
-            Some(v) if unify_fieldless_variants => {
-                // We need a default case that handles all the fieldless variants.
-                Some(
-                    body_func(cx, span, VariantCase(Some(v.ident), &v.data, Vec::new()))
-                        .into_expr(cx, span),
-                )
-            }
-            _ if variants.len() > 1 && *has_other_selflike_arg => {
-                // Because we know that all the arguments will match if we reach
-                // the match expression we add the unreachable intrinsic as the
-                // result of the default which should help llvm in optimizing it.
-                Some(deriving::call_unreachable(cx, span))
-            }
-            _ => None,
-        };
-        if let Some(arm) = default {
-            match_arms.push(cx.arm(span, cx.pat_wild(span), arm));
+    // Add a default arm to the match, if necessary.
+    let first_fieldless = variants.iter().find(|v| v.data.fields().is_empty());
+    let default = match first_fieldless {
+        Some(v) if unify_fieldless_variants => {
+            // We need a default case that handles all the fieldless variants.
+            Some(
+                body_func(cx, span, VariantCase(Some(v.ident), &v.data, Vec::new()))
+                    .into_expr(cx, span),
+            )
         }
-
-        // Create a match expression with one arm per discriminant plus
-        // possibly a default arm, e.g.:
-        //      match (self, other) {
-        //          (Variant1, Variant1) => Body1
-        //          (Variant2, Variant2) => Body2,
-        //          ...
-        //          _ => ::core::intrinsics::unreachable(),
-        //      }
-
-        let self_expr = cx.expr_self(span);
-        let match_arg = if *has_other_selflike_arg {
-            cx.expr_tuple(span, thin_vec![self_expr, cx.expr_name(span, sym::other)])
-        } else {
-            self_expr
-        };
-        let match_expr = cx.expr_match(span, match_arg, match_arms);
-
-        // If the trait uses the discriminant and there are multiple variants, we need
-        // to add a discriminant check operation before the match. Otherwise, the match
-        // is enough.
-        if unify_fieldless_variants && variants.len() > 1 {
-            // Combine a discriminant check with the match.
-            body_func(cx, span, EnumDiscr(Some(match_expr)))
-        } else {
-            BlockOrExpr::new_expr(match_expr)
+        _ if variants.len() > 1 && has_other_selflike_arg => {
+            // Because we know that all the arguments will match if we reach
+            // the match expression we add the unreachable intrinsic as the
+            // result of the default which should help llvm in optimizing it.
+            Some(deriving::call_unreachable(cx, span))
         }
+        _ => None,
+    };
+    if let Some(arm) = default {
+        match_arms.push(cx.arm(span, cx.pat_wild(span), arm));
+    }
+
+    // Create a match expression with one arm per discriminant plus
+    // possibly a default arm, e.g.:
+    //      match (self, other) {
+    //          (Variant1, Variant1) => Body1
+    //          (Variant2, Variant2) => Body2,
+    //          ...
+    //          _ => ::core::intrinsics::unreachable(),
+    //      }
+
+    let self_expr = cx.expr_self(span);
+    let match_arg = if has_other_selflike_arg {
+        cx.expr_tuple(span, thin_vec![self_expr, cx.expr_name(span, sym::other)])
+    } else {
+        self_expr
+    };
+    let match_expr = cx.expr_match(span, match_arg, match_arms);
+
+    // If the trait uses the discriminant and there are multiple variants, we need
+    // to add a discriminant check operation before the match. Otherwise, the match
+    // is enough.
+    if unify_fieldless_variants && variants.len() > 1 {
+        // Combine a discriminant check with the match.
+        body_func(cx, span, EnumDiscr(Some(match_expr)))
+    } else {
+        BlockOrExpr::new_expr(match_expr)
     }
 }
 
