@@ -168,6 +168,10 @@ impl BlockOrExpr {
     fn take(&mut self) -> BlockOrExpr {
         std::mem::replace(self, BlockOrExpr::new_stmts(ThinVec::new()))
     }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty() && self.1.is_none()
+    }
 }
 
 /// This method helps to extract all the type parameters referenced from a
@@ -263,7 +267,7 @@ impl<'a> TraitDef<'a> {
                 methods = self
                     .methods
                     .into_iter()
-                    .filter_map(|mut method_def| {
+                    .map(|mut method_def| {
                         let body = if let MethodBody::Directly(body) = &mut method_def.body {
                             body.take()
                         } else {
@@ -286,7 +290,7 @@ impl<'a> TraitDef<'a> {
                 methods = self
                     .methods
                     .into_iter()
-                    .filter_map(|mut method_def| {
+                    .map(|mut method_def| {
                         let body = if let MethodBody::Directly(body) = &mut method_def.body {
                             body.take()
                         } else {
@@ -493,12 +497,7 @@ impl<'a> MethodDef<'a> {
         cx: &ExtCtxt<'_>,
         span: Span,
         body: BlockOrExpr,
-    ) -> Option<Box<ast::AssocItem>> {
-        // `assert_fields_are_eq` has an empty default implementation
-        if body.0.is_empty() && body.1.is_none() && self.name == sym::assert_fields_are_eq {
-            return None;
-        }
-
+    ) -> Box<ast::AssocItem> {
         self.generics.span = span;
         self.generics.where_clause.span = span;
 
@@ -517,7 +516,7 @@ impl<'a> MethodDef<'a> {
         let sig = ast::FnSig { header: ast::FnHeader::default(), decl: fn_decl, span };
 
         // Create the method.
-        Some(Box::new(ast::AssocItem {
+        Box::new(ast::AssocItem {
             id: ast::DUMMY_NODE_ID,
             attrs: self.attributes,
             span,
@@ -529,7 +528,7 @@ impl<'a> MethodDef<'a> {
                 Some(body_block),
             )),
             tokens: None,
-        }))
+        })
     }
 
     /// The normal case uses field access.

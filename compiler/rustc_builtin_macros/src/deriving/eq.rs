@@ -14,12 +14,12 @@ pub(crate) fn expand_derive_eq(
     push: &mut dyn FnMut(Box<ast::Item>),
     is_const: bool,
 ) {
-    let trait_def = TraitDef {
-        span,
-        path: path_std!(cx, span, cmp::Eq),
-        needs_copy_as_bound_if_packed: true,
-        supports_unions: true,
-        methods: smallvec![MethodDef {
+    // `assert_fields_are_eq` has an empty default implementation
+    let body = assert_fields_eq_body(cx, item);
+    let methods = if body.is_empty() {
+        smallvec![]
+    } else {
+        smallvec![MethodDef {
             name: sym::assert_fields_are_eq,
             generics: Default::default(),
             args: thin_vec![cx.param_self_ref(span)],
@@ -31,8 +31,16 @@ pub(crate) fn expand_derive_eq(
                 cx.generated_attr(span, ast::GeneratedAttr::DocHidden),
                 cx.generated_attr(span, ast::GeneratedAttr::CoverageOff),
             ],
-            body: MethodBody::Directly(assert_fields_eq_body(cx, item)),
-        }],
+            body: MethodBody::Directly(body),
+        }]
+    };
+
+    let trait_def = TraitDef {
+        span,
+        path: path_std!(cx, span, cmp::Eq),
+        needs_copy_as_bound_if_packed: true,
+        supports_unions: true,
+        methods,
         is_const,
         ..
     };
