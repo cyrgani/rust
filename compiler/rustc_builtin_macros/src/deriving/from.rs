@@ -79,7 +79,7 @@ pub(crate) fn expand_derive_from(
             args: thin_vec![cx.param(span, sym::value, from_type)],
             ret_ty: cx.ty_self(span),
             attributes: thin_vec![cx.generated_attr(span, ast::GeneratedAttr::Inline)],
-            body: MethodBody::Directly(BlockOrExpr::new_expr(match field {
+            body: BlockOrExpr::new_expr(match field {
                 Ok((field, variant)) => {
                     let self_kw = Ident::new(kw::SelfUpper, span);
                     match variant {
@@ -105,7 +105,7 @@ pub(crate) fn expand_derive_from(
                     }
                 }
                 Err(guar) => DummyResult::raw_expr(span, Some(guar)),
-            })),
+            }),
         }],
         is_const,
         ..

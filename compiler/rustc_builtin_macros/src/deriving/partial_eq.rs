@@ -41,11 +41,14 @@ pub(crate) fn expand_derive_partial_eq(
         args: thin_vec![cx.param_self_ref(span), cx.param(span, sym::other, cx.ty_self_ref(span))],
         ret_ty: cx.ty_name(span, sym::bool),
         attributes: thin_vec![cx.generated_attr(span, ast::GeneratedAttr::Inline)],
-        body: MethodBody::SubstructureFunc {
-            body_func: Box::new(partial_eq_body),
-            strategy: FieldlessVariantsStrategy::Unify,
-            has_other_selflike_arg: true,
-        },
+        body: expand_via_substructure(
+            cx,
+            span,
+            item,
+            Box::new(partial_eq_body),
+            FieldlessVariantsStrategy::Unify,
+            true,
+        ),
     }];
 
     let trait_def = TraitDef {

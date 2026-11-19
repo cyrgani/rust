@@ -31,7 +31,7 @@ pub(crate) fn expand_derive_eq(
                 cx.generated_attr(span, ast::GeneratedAttr::DocHidden),
                 cx.generated_attr(span, ast::GeneratedAttr::CoverageOff),
             ],
-            body: MethodBody::Directly(body),
+            body,
         }]
     };
 

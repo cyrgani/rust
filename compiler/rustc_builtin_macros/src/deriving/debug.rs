@@ -40,21 +40,22 @@ pub(crate) fn expand_derive_debug(
             ],
             body: match &item.kind {
                 _ if cx.sess.opts.unstable_opts.fmt_debug == FmtDebug::None => {
-                    MethodBody::Directly(BlockOrExpr::new_expr(
-                        cx.expr_ok(span, cx.expr_tuple(span, ThinVec::new())),
-                    ))
+                    BlockOrExpr::new_expr(cx.expr_ok(span, cx.expr_tuple(span, ThinVec::new())))
                 }
                 ast::ItemKind::Enum(_, _, def)
                     if def.variants.len() > 1
                         && def.variants.iter().all(|v| v.data.fields().is_empty()) =>
                 {
-                    MethodBody::Directly(debug_fieldless_enum(cx, span, def, ident))
+                    debug_fieldless_enum(cx, span, def, ident)
                 }
-                _ => MethodBody::SubstructureFunc {
-                    body_func: Box::new(|cx, span, substr| debug_body(cx, span, substr, ident)),
-                    strategy: FieldlessVariantsStrategy::Default,
-                    has_other_selflike_arg: false,
-                },
+                _ => expand_via_substructure(
+                    cx,
+                    span,
+                    item,
+                    Box::new(|cx, span, substr| debug_body(cx, span, substr, ident)),
+                    FieldlessVariantsStrategy::Default,
+                    false,
+                ),
             },
         }],
         is_const,

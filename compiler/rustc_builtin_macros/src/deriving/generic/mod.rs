@@ -13,7 +13,7 @@ pub(crate) use thin_vec::{ThinVec, thin_vec};
 use crate::util::generic_param_to_arg;
 use crate::{deriving, diagnostics};
 
-pub(crate) struct TraitDef<'a> {
+pub(crate) struct TraitDef {
     /// The span for the current #[derive(Foo)] header.
     pub span: Span,
 
@@ -33,7 +33,7 @@ pub(crate) struct TraitDef<'a> {
     /// Can this trait be derived for unions?
     pub supports_unions: bool,
 
-    pub methods: SmallVec<[MethodDef<'a>; 1]>,
+    pub methods: SmallVec<[MethodDef; 1]>,
 
     pub is_const: bool,
 
@@ -44,7 +44,7 @@ pub(crate) struct TraitDef<'a> {
     pub document: bool = true,
 }
 
-pub(crate) struct MethodDef<'a> {
+pub(crate) struct MethodDef {
     /// name of the method
     pub name: Symbol,
     /// List of generics, e.g., `R: rand::Rng`
@@ -57,7 +57,7 @@ pub(crate) struct MethodDef<'a> {
 
     pub attributes: ast::AttrVec,
 
-    pub body: MethodBody<'a>,
+    pub body: BlockOrExpr,
 }
 
 /// How to handle fieldless enum variants.
@@ -95,17 +95,8 @@ pub(crate) enum Substructure<'a> {
     EnumDiscr(Option<Box<Expr>>),
 }
 
-pub(crate) enum MethodBody<'a> {
-    /// See the documentation on [`Substructure`] for when this is used.
-    SubstructureFunc {
-        body_func: Box<dyn Fn(&ExtCtxt<'_>, Span, Substructure<'_>) -> BlockOrExpr + 'a>,
-        strategy: FieldlessVariantsStrategy,
-        has_other_selflike_arg: bool,
-    },
-    /// The common case.
-    /// If you are adding a new macro, you most likely want to use this.
-    Directly(BlockOrExpr),
-}
+pub(crate) type SubstructureBodyFunc<'a> =
+    Box<dyn Fn(&ExtCtxt<'_>, Span, Substructure<'_>) -> BlockOrExpr + 'a>;
 
 struct TypeParameter {
     bound_generic_params: ThinVec<ast::GenericParam>,
@@ -234,11 +225,11 @@ fn find_type_parameters(
     visitor.type_params
 }
 
-impl<'a> TraitDef<'a> {
+impl TraitDef {
     pub(crate) fn expand(
         self,
         cx: &ExtCtxt<'_>,
-        item: &'a ast::Item,
+        item: &ast::Item,
         push: &mut dyn FnMut(Box<ast::Item>),
     ) {
         let span = self.span;
@@ -267,11 +258,8 @@ impl<'a> TraitDef<'a> {
             _ => unreachable!(),
         };
 
-        let methods = self
-            .methods
-            .into_iter()
-            .map(|method_def| method_def.create_method(cx, span, item, is_packed))
-            .collect();
+        let methods =
+            self.methods.into_iter().map(|method_def| method_def.create_method(cx, span)).collect();
 
         let mut where_clause = ast::WhereClause::default();
         where_clause.span = generics.where_clause.span;
@@ -460,27 +448,8 @@ impl<'a> TraitDef<'a> {
     }
 }
 
-impl<'a> MethodDef<'a> {
-    fn create_method(
-        mut self,
-        cx: &ExtCtxt<'_>,
-        span: Span,
-        item: &ast::Item,
-        is_packed: bool,
-    ) -> Box<ast::AssocItem> {
-        let body = match self.body {
-            MethodBody::Directly(body) => body,
-            body @ MethodBody::SubstructureFunc { .. } => match &item.kind {
-                ast::ItemKind::Struct(_, _, vdata) | ast::ItemKind::Union(_, _, vdata) => {
-                    expand_struct_method_body(cx, span, vdata, is_packed, body)
-                }
-                ast::ItemKind::Enum(_, _, enum_def) => {
-                    expand_enum_method_body(cx, span, enum_def, body)
-                }
-                _ => unreachable!(),
-            },
-        };
-
+impl MethodDef {
+    fn create_method(mut self, cx: &ExtCtxt<'_>, span: Span) -> Box<ast::AssocItem> {
         self.generics.span = span;
         self.generics.where_clause.span = span;
 
@@ -492,7 +461,7 @@ impl<'a> MethodDef<'a> {
 
         let method_ident = Ident::new(self.name, span);
         let fn_decl = cx.fn_decl(self.args, ret_type);
-        let body_block = body.into_block(cx, span);
+        let body_block = self.body.into_block(cx, span);
 
         let trait_lo_sp = span.shrink_to_lo();
 
@@ -512,6 +481,29 @@ impl<'a> MethodDef<'a> {
             )),
             tokens: None,
         })
+    }
+}
+
+pub(crate) fn expand_via_substructure(
+    cx: &ExtCtxt<'_>,
+    span: Span,
+    item: &ast::Item,
+    func: SubstructureBodyFunc<'_>,
+    strategy: FieldlessVariantsStrategy,
+    has_other_selflike_arg: bool,
+) -> BlockOrExpr {
+    match &item.kind {
+        ast::ItemKind::Struct(_, _, vdata) | ast::ItemKind::Union(_, _, vdata) => {
+            let is_packed = matches!(
+                AttributeParser::parse_limited_sym(cx.sess, &item.attrs, &[sym::repr]),
+                Some(Attribute::Parsed(AttributeKind::Repr { reprs, .. })) if reprs.iter().any(|(x, _)| matches!(x, ReprPacked(..)))
+            );
+            expand_struct_method_body(cx, span, vdata, is_packed, func, has_other_selflike_arg)
+        }
+        ast::ItemKind::Enum(_, _, enum_def) => {
+            expand_enum_method_body(cx, span, enum_def, func, strategy, has_other_selflike_arg)
+        }
+        _ => unreachable!(),
     }
 }
 
@@ -555,11 +547,9 @@ fn expand_struct_method_body<'b>(
     span: Span,
     struct_def: &'b VariantData,
     is_packed: bool,
-    body: MethodBody<'_>,
+    body_func: SubstructureBodyFunc<'_>,
+    has_other_selflike_arg: bool,
 ) -> BlockOrExpr {
-    let MethodBody::SubstructureFunc { body_func, has_other_selflike_arg, .. } = body else {
-        unreachable!()
-    };
     let selflike_fields = struct_def
         .fields()
         .iter()
@@ -639,16 +629,15 @@ fn expand_enum_method_body<'b>(
     cx: &ExtCtxt<'_>,
     span: Span,
     enum_def: &'b EnumDef,
-    body: MethodBody<'_>,
+    body_func: SubstructureBodyFunc<'_>,
+    strategy: FieldlessVariantsStrategy,
+    has_other_selflike_arg: bool,
 ) -> BlockOrExpr {
     let variants = &enum_def.variants;
 
     // There are some special cases involving fieldless enums where no
     // match is necessary.
     let all_fieldless = variants.iter().all(|v| v.data.fields().is_empty());
-    let MethodBody::SubstructureFunc { body_func, strategy, has_other_selflike_arg } = body else {
-        unreachable!()
-    };
     // Traits that unify fieldless variants always use the discriminant(s).
     let unify_fieldless_variants = strategy == FieldlessVariantsStrategy::Unify;
 

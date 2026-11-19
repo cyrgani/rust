@@ -29,8 +29,11 @@ pub(crate) fn expand_derive_ord(
             ],
             ret_ty: cx.ty_path(path_std!(cx, span, cmp::Ordering)),
             attributes: thin_vec![cx.generated_attr(span, ast::GeneratedAttr::Inline)],
-            body: MethodBody::SubstructureFunc {
-                body_func: Box::new(|cx, span, substr| {
+            body: expand_via_substructure(
+                cx,
+                span,
+                item,
+                Box::new(|cx, span, substr| {
                     // Builds:
                     //
                     // match ::core::cmp::Ord::cmp(&self.x, &other.x) {
@@ -41,9 +44,9 @@ pub(crate) fn expand_derive_ord(
                     let expr = cmp_body(cx, span, substr, discr_then_data, OrdlikeDerive::Ord);
                     BlockOrExpr::new_expr(expr)
                 }),
-                strategy: FieldlessVariantsStrategy::Unify,
-                has_other_selflike_arg: true,
-            },
+                FieldlessVariantsStrategy::Unify,
+                true,
+            ),
         }],
         is_const,
         ..

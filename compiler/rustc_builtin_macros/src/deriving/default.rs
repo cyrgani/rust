@@ -31,7 +31,7 @@ pub(crate) fn expand_derive_default(
             args: ThinVec::new(),
             ret_ty: cx.ty_self(span),
             attributes: thin_vec![cx.generated_attr(span, ast::GeneratedAttr::Inline)],
-            body: MethodBody::Directly(match &item.kind {
+            body: match &item.kind {
                 ItemKind::Struct(ident, _, variant_data)
                 | ItemKind::Union(ident, _, variant_data) => default_struct_body(
                     cx,
@@ -42,7 +42,7 @@ pub(crate) fn expand_derive_default(
                 ),
                 ItemKind::Enum(_, _, enum_def) => default_enum_body(cx, span, enum_def, item.span),
                 _ => unreachable!(),
-            }),
+            },
         }],
         is_const,
         ..

@@ -55,15 +55,16 @@ pub(crate) fn expand_derive_partial_ord(
         ret_ty,
         attributes: thin_vec![cx.generated_attr(span, ast::GeneratedAttr::Inline)],
         body: if is_simple {
-            MethodBody::Directly(partial_cmp_simple_body(cx, span, cx.expr_name(span, sym::other)))
+            partial_cmp_simple_body(cx, span, cx.expr_name(span, sym::other))
         } else {
-            MethodBody::SubstructureFunc {
-                body_func: Box::new(|cx, span, substr| {
-                    partial_cmp_body(cx, span, substr, discr_then_data)
-                }),
-                strategy: FieldlessVariantsStrategy::Unify,
-                has_other_selflike_arg: true,
-            }
+            expand_via_substructure(
+                cx,
+                span,
+                item,
+                Box::new(|cx, span, substr| partial_cmp_body(cx, span, substr, discr_then_data)),
+                FieldlessVariantsStrategy::Unify,
+                true,
+            )
         },
     };
 

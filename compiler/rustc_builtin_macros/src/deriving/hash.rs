@@ -28,6 +28,15 @@ pub(crate) fn expand_derive_hash(
         span,
     };
 
+    let body = expand_via_substructure(
+        cx,
+        span,
+        item,
+        Box::new(hash_body),
+        FieldlessVariantsStrategy::Unify,
+        false,
+    );
+
     let hash_trait_def = TraitDef {
         span,
         path,
@@ -42,11 +51,7 @@ pub(crate) fn expand_derive_hash(
             ],
             ret_ty: cx.ty_unit(span),
             attributes: thin_vec![cx.generated_attr(span, ast::GeneratedAttr::Inline)],
-            body: MethodBody::SubstructureFunc {
-                body_func: Box::new(hash_body),
-                strategy: FieldlessVariantsStrategy::Unify,
-                has_other_selflike_arg: false,
-            },
+            body
         }],
         is_const,
         ..

@@ -42,22 +42,23 @@ pub(crate) fn expand_derive_clone(
                     .any(|param| matches!(param.kind, ast::GenericParamKind::Type { .. }))
             {
                 is_simple = true;
-                body = MethodBody::Directly(clone_simple_body(cx, span, item, false));
+                body = clone_simple_body(cx, span, item, false);
             } else {
                 is_simple = false;
-                body = MethodBody::SubstructureFunc {
-                    body_func: Box::new(|c, s, sub| {
-                        clone_body(c, s, sub, item.kind.ident().unwrap())
-                    }),
-                    strategy: FieldlessVariantsStrategy::Default,
-                    has_other_selflike_arg: false,
-                };
+                body = expand_via_substructure(
+                    cx,
+                    span,
+                    item,
+                    Box::new(|c, s, sub| clone_body(c, s, sub, item.kind.ident().unwrap())),
+                    FieldlessVariantsStrategy::Default,
+                    false,
+                );
             }
         }
         ItemKind::Union(..) => {
             bounds = thin_vec![path_std!(cx, span, marker::Copy)];
             is_simple = true;
-            body = MethodBody::Directly(clone_simple_body(cx, span, item, true));
+            body = clone_simple_body(cx, span, item, true);
         }
         _ => cx.dcx().span_bug(span, "`derive(Clone)` on wrong item kind"),
     }
