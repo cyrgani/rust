@@ -41,8 +41,7 @@ pub(crate) fn expand_derive_ord(
                     //         ::core::cmp::Ord::cmp(&self.y, &other.y),
                     //     cmp => cmp,
                     // }
-                    let expr = cmp_body(cx, span, substr, discr_then_data, OrdlikeDerive::Ord);
-                    BlockOrExpr::new_expr(expr)
+                    cmp_body(cx, span, substr, discr_then_data, OrdlikeDerive::Ord)
                 }),
                 FieldlessVariantsStrategy::Unify,
                 true,

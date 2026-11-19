@@ -130,8 +130,7 @@ fn partial_cmp_body(
     //         ::core::cmp::PartialOrd::partial_cmp(&self.y, &other.y),
     //     cmp => cmp,
     // }
-    let expr = cmp_body(cx, span, substr, discr_then_data, OrdlikeDerive::PartialOrd);
-    BlockOrExpr::new_expr(expr)
+    cmp_body(cx, span, substr, discr_then_data, OrdlikeDerive::PartialOrd)
 }
 
 #[derive(PartialEq)]
@@ -146,7 +145,7 @@ pub(crate) fn cmp_body(
     substructure: Substructure<'_>,
     discr_then_data: bool,
     derive: OrdlikeDerive,
-) -> Box<Expr> {
+) -> BlockOrExpr {
     let is_partial_ord = derive == OrdlikeDerive::PartialOrd;
     let method_path = if is_partial_ord {
         [sym::cmp, sym::PartialOrd, sym::partial_cmp]
@@ -209,7 +208,7 @@ pub(crate) fn cmp_body(
         }
     };
 
-    match substructure {
+    BlockOrExpr::new_expr(match substructure {
         VariantCase(.., all_fields) => {
             let op = |old, field: FieldInfo<'_>| {
                 // The basic case: a field expression for one or more selflike args. E.g.
@@ -245,5 +244,5 @@ pub(crate) fn cmp_body(
                 discr_check_expr
             }
         }
-    }
+    })
 }

@@ -537,10 +537,10 @@ pub(crate) fn expand_via_substructure(
 ///     }
 /// }
 /// ```
-fn expand_struct_method_body<'b>(
+fn expand_struct_method_body(
     cx: &ExtCtxt<'_>,
     span: Span,
-    struct_def: &'b VariantData,
+    struct_def: &VariantData,
     is_packed: bool,
     body_func: SubstructureBodyFunc<'_>,
     has_other_selflike_arg: bool,
@@ -620,10 +620,10 @@ fn expand_struct_method_body<'b>(
 /// `selflike_args`, with an arm for each variant with fields, possibly an
 /// arm for each fieldless variant (if `unify_fieldless_variants` is not
 /// `Unify`), and possibly a default arm.
-fn expand_enum_method_body<'b>(
+fn expand_enum_method_body(
     cx: &ExtCtxt<'_>,
     span: Span,
-    enum_def: &'b EnumDef,
+    enum_def: &EnumDef,
     body_func: SubstructureBodyFunc<'_>,
     strategy: FieldlessVariantsStrategy,
     has_other_selflike_arg: bool,
